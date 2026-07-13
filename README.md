@@ -130,10 +130,63 @@ const message = await incoming;
 
 ### Promise and event receive styles
 
-The low-level promise API remains the most direct choice for one receive, an
-explicit loop, `AbortSignal` control, batches, or packet-ring leases. The
-optional `RawSocketEventEmitter` continuously rearms one bounded
-`receiveMessage()` operation and exposes ordinary synchronous Node events:
+Both receive styles produce the same `ReceivedMessage` shape. Use the promise
+API when the application should explicitly control every receive, or wrap a
+normal `RawSocket` in `RawSocketEventEmitter` when a long-lived Node-style
+listener is a better fit. Do not use both styles on the same receive lane at the
+same time; `ERR_RECEIVER_ACTIVE` reports accidental competing consumers.
+
+#### Promise-driven repeated reception
+
+The low-level API can receive one message at a time in an explicit loop. Passing
+the same `AbortSignal` to every receive gives the application a clean way to
+stop even while the loop is waiting for traffic:
+
+```ts
+import {
+  IPPROTO_ICMP,
+  RawSocket,
+  RawSocketError,
+  type ReceivedMessage,
+} from "nodenetraw";
+
+function handleMessage(message: ReceivedMessage): void {
+  console.log(message.source, message.control, message.data);
+}
+
+const socket = await RawSocket.open({ protocol: IPPROTO_ICMP });
+await socket.bind("127.0.0.1");
+
+const stop = new AbortController();
+process.once("SIGINT", () => stop.abort());
+
+try {
+  for (;;) {
+    try {
+      const message = await socket.receiveMessage({ signal: stop.signal });
+      handleMessage(message);
+    } catch (error: unknown) {
+      if (error instanceof RawSocketError && error.code === "ERR_ABORTED") {
+        break;
+      }
+      throw error;
+    }
+  }
+} finally {
+  stop.abort();
+  await socket.close();
+}
+```
+
+The same pattern works with a caller-defined loop condition instead of a signal.
+The promise API is also the required style for `receiveBatch()` and
+`receiveRingFrame()`.
+
+#### Event-driven repeated reception
+
+`RawSocketEventEmitter` owns one receive lane and continuously rearms one
+bounded `receiveMessage()` operation. Construction is inert: attach listeners
+first, then call `start()` when the application is ready to consume packets.
 
 ```ts
 import {
@@ -164,15 +217,33 @@ source.on("error", (error: unknown) => {
 });
 source.once("close", () => console.log("socket closed"));
 
-source.start(); // Explicit: no packet is consumed before this call.
+async function pauseReception(): Promise<void> {
+  // Stop admission and wait for a stable boundary with no later message event.
+  await source.pause();
+  console.log(source.status); // "paused"
+}
 
-// Later, stop admission and wait until no further message can be emitted.
-await source.pause();
-source.resume();
+function resumeReception(): void {
+  source.resume();
+}
 
-// This closes the wrapped RawSocket and emits one library-generated `close`.
-await source.close();
+source.start(); // Continues emitting messages until paused, detached, or closed.
+
+process.once("SIGINT", () => {
+  // close() also closes the wrapped RawSocket and emits `close` exactly once.
+  void source.close().catch((error: unknown) => {
+    console.error("socket close failed", error);
+  });
+});
 ```
+
+Message listeners run synchronously and in registration order, as with Node's
+`EventEmitter`. The adapter does not start a second receive until synchronous
+dispatch of the current message finishes, but it does not await promises
+returned by async listeners. Use `pauseReception()` or an application queue when
+asynchronous work needs explicit backpressure, then call `resumeReception()`.
+Sending and socket option methods can still be used directly on `socket` while
+the adapter owns reception.
 
 | Choose promises when…                              | Choose events when…                                  |
 | -------------------------------------------------- | ---------------------------------------------------- |
@@ -183,8 +254,9 @@ await source.close();
 Construction snapshots its options but does not start receiving. `start()` and
 `resume()` return the source synchronously. `pause()` returns a cached boundary
 promise and resolves only after an already-received message or error has been
-dispatched. `detach()` permanently quiesces the source, releases its receive
-lane, and resolves to the still-open `RawSocket`:
+dispatched. To return to promise-driven reception without closing the socket,
+use `detach()` instead of `close()`. It permanently quiesces the source,
+releases its receive lane, and resolves to the still-open `RawSocket`:
 
 ```ts
 await source.pause();
@@ -204,6 +276,15 @@ source can own each lane, so both can operate on the same IP socket:
 await socket.setOption("receiveErrors", true);
 const messages = new RawSocketEventEmitter(socket);
 const networkErrors = new RawSocketEventEmitter(socket, { errorQueue: true });
+
+const handleReceiveFailure = (error: unknown): void => {
+  if (error instanceof RawSocketError) {
+    console.error(error.operation, error.code, error.errnoName);
+    return;
+  }
+  console.error("event listener failed", error);
+};
+
 networkErrors.on("message", (message) => {
   // These are MSG_ERRQUEUE messages, not EventEmitter `error` events.
   console.log(message.flags, message.control);
@@ -462,7 +543,9 @@ Implementation and verification details are in the
 [Phase 10 report](ai_documentation/17-phase-10-report.md) and the
 [release-readiness audit](ai_documentation/18-release-readiness-audit.md). The
 event adapter is recorded in the
-[Phase 11 report](ai_documentation/21-phase-11-report.md).
+[Phase 11 report](ai_documentation/21-phase-11-report.md); its adversarial
+post-implementation review is the
+[Phase 11 implementation audit](ai_documentation/22-phase-11-implementation-audit.md).
 
 ## License
 

@@ -29,6 +29,12 @@ close without changing Rust or native ownership. The candidate is now the
 unpublished `0.1.0-rc.2`; x86-64 ordinary, privileged, stress, consumer,
 artifact, and reproducibility gates pass.
 
+The adversarial post-implementation audit found and corrected a stale same-turn
+pump replacement race, non-abort error wins that could strand pause or detach
+state, and hostile AbortSignal cleanup gaps. Expanded controller coverage and
+genuine privileged regressions now protect those cases. See the Phase 11
+implementation audit.
+
 The post-Phase-10 release-readiness audit supersedes nonblocking N-API callback
 delivery with bounded lossless backpressure, makes close wait for all admitted
 operations, recovers malformed packet-ring blocks, validates returned batch and
@@ -59,6 +65,7 @@ explicitly untested.
 19. [Phase 11 event-driven API plan](19-phase-11-event-api-plan.md)
 20. [Phase 11 plan review](20-phase-11-plan-review.md)
 21. [Phase 11 completion report](21-phase-11-report.md)
+22. [Phase 11 implementation audit](22-phase-11-implementation-audit.md)
 
 `AGENTS.md` is the compact operational context. These documents contain the
 rationale and phase details. If they disagree, resolve the discrepancy and

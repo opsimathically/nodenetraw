@@ -238,6 +238,14 @@ test(
         "packet event delivery",
       );
       assert.equal(deliveredFrames.length, 2);
+      assert.deepEqual(
+        deliveredFrames.map((message) =>
+          eventPayloads.findIndex((candidate) =>
+            message.data.subarray(-candidate.length).equals(candidate),
+          ),
+        ),
+        [0, 1],
+      );
       for (const delivered of deliveredFrames) {
         assert.equal(delivered.source?.family, "packet");
         assert.equal(delivered.source?.interfaceIndex, secondIndex);
@@ -725,12 +733,88 @@ test(
         operation: "createRawSocketEventEmitter",
       });
     }
+    assert.throws(
+      () =>
+        new RawSocketEventEmitter(
+          socket,
+          new Proxy(
+            {},
+            {
+              get() {
+                throw new Error("hostile options getter");
+              },
+            },
+          ),
+        ),
+      {
+        code: "ERR_NATIVE_BOUNDARY",
+        operation: "createRawSocketEventEmitter",
+      },
+    );
+
+    const hostileRegistrationController = new globalThis.AbortController();
+    Object.defineProperty(
+      hostileRegistrationController.signal,
+      "addEventListener",
+      {
+        value() {
+          throw new Error("hostile signal registration");
+        },
+      },
+    );
+    await assert.rejects(
+      socket.receiveMessage({ signal: hostileRegistrationController.signal }),
+      {
+        code: "ERR_NATIVE_BOUNDARY",
+        operation: "receiveMessage",
+      },
+    );
+    const registrationProbe = new RawSocketEventEmitter(socket);
+    await registrationProbe.detach();
+
+    const hostileAbortedController = new globalThis.AbortController();
+    Object.defineProperty(hostileAbortedController.signal, "aborted", {
+      get() {
+        throw new Error("hostile signal state");
+      },
+    });
+    await assert.rejects(
+      socket.receiveMessage({ signal: hostileAbortedController.signal }),
+      {
+        code: "ERR_NATIVE_BOUNDARY",
+        operation: "receiveMessage",
+      },
+    );
+    const abortedProbe = new RawSocketEventEmitter(socket);
+    await abortedProbe.detach();
+
+    const hostileRemovalController = new globalThis.AbortController();
+    Object.defineProperty(
+      hostileRemovalController.signal,
+      "removeEventListener",
+      {
+        value() {
+          throw new Error("hostile signal removal");
+        },
+      },
+    );
+    const hostileRemovalReceive = socket.receiveMessage({
+      signal: hostileRemovalController.signal,
+    });
+    hostileRemovalController.abort();
+    await assert.rejects(hostileRemovalReceive, { code: "ERR_ABORTED" });
+    const removalProbe = new RawSocketEventEmitter(socket);
+    await removalProbe.detach();
 
     const directAbort = new globalThis.AbortController();
     const directReceive = socket.receiveMessage({ signal: directAbort.signal });
+    const independentErrorLane = new RawSocketEventEmitter(socket, {
+      errorQueue: true,
+    });
     assert.throws(() => new RawSocketEventEmitter(socket), {
       code: "ERR_RECEIVER_ACTIVE",
     });
+    await independentErrorLane.detach();
     directAbort.abort();
     await assert.rejects(directReceive, { code: "ERR_ABORTED" });
 
@@ -746,6 +830,19 @@ test(
     await assert.rejects(socket.receiveBatch({ count: 1 }), {
       code: "ERR_RECEIVER_ACTIVE",
     });
+    await assert.rejects(socket.receiveMessage({ dataCapacity: 0 }), {
+      code: "ERR_INVALID_ARGUMENT",
+    });
+    await assert.rejects(socket.receive(0), { code: "ERR_INVALID_ARGUMENT" });
+    await assert.rejects(socket.receiveBatch({ count: 0 }), {
+      code: "ERR_INVALID_ARGUMENT",
+    });
+    const alreadyAbortedConflict = new globalThis.AbortController();
+    alreadyAbortedConflict.abort();
+    await assert.rejects(
+      socket.receiveMessage({ signal: alreadyAbortedConflict.signal }),
+      { code: "ERR_RECEIVER_ACTIVE" },
+    );
 
     const sequences = [];
     let pauseBoundary;
@@ -776,6 +873,11 @@ test(
         secondResolve();
       }
     });
+    const sameTurnPause = source.start().pause();
+    assert.equal(source.status, "paused");
+    source.resume();
+    await sameTurnPause;
+    assert.equal(source.status, "running");
     assert.equal(source.start(), source);
     await setImmediate();
     await socket.send(createEchoRequest(11), "127.0.0.1");
@@ -791,11 +893,23 @@ test(
     assert.deepEqual(sequences, [11, 12]);
 
     await source.pause();
-    assert.equal(await source.detach(), socket);
+    const detach = source.detach();
+    const closingSource = new RawSocketEventEmitter(socket);
+    assert.equal(await detach, socket);
     assert.equal(source.status, "detached");
 
-    const closingSource = new RawSocketEventEmitter(socket);
-    const closeEvent = once(closingSource, "close");
+    let closeEvents = 0;
+    let libraryCloseResolve;
+    const libraryCloseEvent = new Promise((resolve) => {
+      libraryCloseResolve = resolve;
+    });
+    closingSource.on("close", () => {
+      closeEvents += 1;
+      if (closeEvents === 2) libraryCloseResolve();
+    });
+    assert.equal(closingSource.emit("close"), true);
+    assert.equal(closingSource.status, "idle");
+    assert.equal(closeEvents, 1);
     let adapterClose;
     const finalMessage = new Promise((resolve, reject) => {
       closingSource.on("error", reject);
@@ -809,8 +923,9 @@ test(
     await setImmediate();
     await socket.send(createEchoRequest(13), "127.0.0.1");
     await withDeadline(finalMessage, "closing IPv4 event");
-    await withDeadline(closeEvent, "IPv4 close event");
+    await withDeadline(libraryCloseEvent, "IPv4 close event");
     await adapterClose;
+    assert.equal(closeEvents, 2);
     assert.equal(closingSource.status, "closed");
     assert.equal(socket.status, "closed");
   },
@@ -874,6 +989,21 @@ test(
         udpReceiver.once("error", reject);
         udpReceiver.bind(49_271, "127.0.0.1", resolve);
       });
+
+      const directErrorAbort = new globalThis.AbortController();
+      const directErrorReceive = socket.receiveMessage({
+        flags: ["errorQueue"],
+        signal: directErrorAbort.signal,
+      });
+      const independentNormalLane = new RawSocketEventEmitter(socket);
+      assert.throws(
+        () => new RawSocketEventEmitter(socket, { errorQueue: true }),
+        { code: "ERR_RECEIVER_ACTIVE" },
+      );
+      await independentNormalLane.detach();
+      directErrorAbort.abort();
+      await assert.rejects(directErrorReceive, { code: "ERR_ABORTED" });
+
       const normal = new RawSocketEventEmitter(socket);
       const errors = new RawSocketEventEmitter(socket, { errorQueue: true });
       assert.throws(() => new RawSocketEventEmitter(socket), {

@@ -159,11 +159,27 @@ test("delivers a fulfilled turn before the pause boundary", async () => {
   assert.equal(harness.receives.length, 1);
 });
 
+test("delivers a fulfilled turn before detach releases ownership", async () => {
+  const harness = controllerHarness();
+  harness.controller.start();
+  await flushMicrotasks();
+  harness.receives[0].resolve("won");
+  const detach = harness.controller.detach();
+  assert.equal(harness.releases, 0);
+  assert.equal(await detach, "socket");
+  assert.deepEqual(harness.events, [["message", "won"]]);
+  assert.equal(harness.controller.status, "detached");
+  assert.equal(harness.releases, 1);
+  assert.equal(harness.removals, 1);
+});
+
 test("allows synchronous resume from a nonterminal error listener", async () => {
   let controller;
+  let errorPause;
   const harness = controllerHarness({
     dispatchError(error) {
       harness.events.push(["error", error]);
+      errorPause = controller.pause();
       controller.resume();
     },
   });
@@ -172,6 +188,7 @@ test("allows synchronous resume from a nonterminal error listener", async () => 
   await flushMicrotasks();
   harness.receives[0].reject({ kind: "system" });
   await flushMicrotasks(8);
+  await errorPause;
   assert.equal(controller.status, "running");
   assert.equal(harness.receives.length, 2);
   assert.equal(harness.maximumActive, 1);
@@ -216,6 +233,23 @@ test("closes after a winning message and preserves cached promise identity", asy
   assert.equal(harness.removals, 1);
 });
 
+test("returns the pending close promise from inside close dispatch", async () => {
+  let controller;
+  let nestedClose;
+  const harness = controllerHarness({
+    dispatchClose() {
+      harness.events.push(["close"]);
+      nestedClose = controller.close();
+    },
+  });
+  controller = harness.controller;
+  const close = controller.close();
+  harness.close.resolve();
+  await close;
+  assert.equal(nestedClose, close);
+  assert.deepEqual(harness.events, [["close"]]);
+});
+
 test("reactor loss emits error, terminalizes raw close, then emits close", async () => {
   const harness = controllerHarness();
   harness.controller.start();
@@ -241,6 +275,146 @@ test("external close stops a scheduled pump before admission", async () => {
   await harness.controller.close();
   assert.equal(harness.receives.length, 0);
   assert.deepEqual(harness.events, [["close"]]);
+});
+
+test("external close preserves a fulfilled message awaiting dispatch", async () => {
+  const harness = controllerHarness();
+  harness.controller.start();
+  await flushMicrotasks();
+  harness.receives[0].resolve("last");
+  harness.controller.notifyClosing();
+  harness.controller.notifyCloseOutcome();
+  const close = harness.controller.close();
+  await close;
+  assert.deepEqual(harness.events, [["message", "last"], ["close"]]);
+  assert.equal(harness.controller.status, "closed");
+});
+
+test("socket-closed receive settlement terminalizes without an error event", async () => {
+  const harness = controllerHarness();
+  harness.controller.start();
+  await flushMicrotasks();
+  harness.receives[0].reject({ kind: "socketClosed" });
+  await flushMicrotasks();
+  harness.close.resolve();
+  await harness.controller.close();
+  assert.deepEqual(harness.events, [["close"]]);
+  assert.equal(harness.controller.status, "closed");
+});
+
+test("close outcome alone terminalizes an idle externally closed source", async () => {
+  const harness = controllerHarness();
+  harness.controller.notifyCloseOutcome();
+  await harness.controller.close();
+  assert.equal(harness.controller.status, "closed");
+  assert.deepEqual(harness.events, [["close"]]);
+  harness.controller.notifyCloseOutcome(new Error("duplicate"), true);
+  assert.deepEqual(harness.events, [["close"]]);
+});
+
+test("converts a synchronous receive-driver throw into a paused error turn", async () => {
+  const failure = new Error("synchronous receive failure");
+  const harness = controllerHarness({
+    receive() {
+      throw failure;
+    },
+  });
+  harness.controller.start();
+  await flushMicrotasks(6);
+  assert.equal(harness.controller.status, "paused");
+  assert.deepEqual(harness.events, [["error", failure]]);
+  await harness.controller.pause();
+});
+
+test("dispatches a late non-cancellation receive error before close", async () => {
+  const receive = deferred();
+  const failure = { kind: "system" };
+  const harness = controllerHarness({
+    receive() {
+      return receive.promise;
+    },
+  });
+  harness.controller.start();
+  await flushMicrotasks();
+  const close = harness.controller.close();
+  harness.close.resolve();
+  receive.reject(failure);
+  await close;
+  assert.deepEqual(harness.events, [["error", failure], ["close"]]);
+  assert.equal(harness.controller.status, "closed");
+});
+
+test("synchronous close-driver failure still dispatches close and rejects", async () => {
+  const closeError = new Error("synchronous close failure");
+  const harness = controllerHarness({
+    close() {
+      throw closeError;
+    },
+    releaseClaim() {
+      throw new Error("injected claim cleanup failure");
+    },
+    removeCloseObserver() {
+      throw new Error("injected observer cleanup failure");
+    },
+  });
+  await assert.rejects(harness.controller.close(), (error) => {
+    assert.equal(error, closeError);
+    return true;
+  });
+  assert.deepEqual(harness.events, [["close"]]);
+  assert.equal(harness.controller.status, "closed");
+});
+
+test("same-turn start, pause, and resume replaces the stale scheduled pump", async () => {
+  const harness = controllerHarness();
+  harness.controller.start();
+  const pause = harness.controller.pause();
+  assert.equal(harness.controller.status, "paused");
+  assert.equal(harness.controller.resume(), harness.controller);
+  await pause;
+  await flushMicrotasks();
+  assert.equal(harness.controller.status, "running");
+  assert.equal(harness.receives.length, 1);
+  await harness.controller.pause();
+});
+
+test("preserves a pause boundary when a non-abort receive error wins", async () => {
+  const receive = deferred();
+  const failure = { kind: "system" };
+  const harness = controllerHarness({
+    receive() {
+      return receive.promise;
+    },
+  });
+  harness.controller.start();
+  await flushMicrotasks();
+  const firstPause = harness.controller.pause();
+  const secondPause = harness.controller.pause();
+  receive.reject(failure);
+  await firstPause;
+  await flushMicrotasks();
+  assert.equal(firstPause, secondPause);
+  assert.equal(harness.controller.status, "paused");
+  assert.deepEqual(harness.events, [["error", failure]]);
+});
+
+test("preserves detaching when a non-abort receive error wins", async () => {
+  const receive = deferred();
+  const failure = { kind: "system" };
+  const harness = controllerHarness({
+    receive() {
+      return receive.promise;
+    },
+  });
+  harness.controller.start();
+  await flushMicrotasks();
+  const detach = harness.controller.detach();
+  receive.reject(failure);
+  assert.equal(await detach, "socket");
+  assert.equal(harness.controller.status, "detached");
+  assert.deepEqual(harness.events, [["error", failure]]);
+  assert.equal(harness.releases, 1);
+  assert.equal(harness.removals, 1);
 });
 
 test("implements idle, paused, detached, and terminal method contracts", async () => {
@@ -281,6 +455,58 @@ test("implements idle, paused, detached, and terminal method contracts", async (
   await assert.rejects(closed.controller.detach(), {
     code: "ERR_SOCKET_CLOSED",
   });
+});
+
+test("enforces the pausing, detaching, and closing method matrix", async () => {
+  const pausing = controllerHarness();
+  pausing.controller.start();
+  assert.equal(pausing.controller.start(), pausing.controller);
+  assert.equal(pausing.controller.resume(), pausing.controller);
+  await flushMicrotasks();
+  const pause = pausing.controller.pause();
+  assert.equal(pausing.controller.status, "pausing");
+  assert.throws(() => pausing.controller.start(), {
+    code: "ERR_INVALID_STATE",
+  });
+  assert.throws(() => pausing.controller.resume(), {
+    code: "ERR_INVALID_STATE",
+  });
+  await pause;
+
+  const detaching = controllerHarness();
+  detaching.controller.start();
+  await flushMicrotasks();
+  const detach = detaching.controller.detach();
+  assert.equal(detaching.controller.status, "detaching");
+  assert.throws(() => detaching.controller.start(), {
+    code: "ERR_INVALID_STATE",
+  });
+  assert.throws(() => detaching.controller.resume(), {
+    code: "ERR_INVALID_STATE",
+  });
+  await assert.rejects(detaching.controller.pause(), {
+    code: "ERR_INVALID_STATE",
+  });
+  await detach;
+
+  const closing = controllerHarness();
+  const firstClose = closing.controller.close();
+  assert.equal(closing.controller.status, "closing");
+  assert.equal(closing.controller.close(), firstClose);
+  assert.throws(() => closing.controller.start(), {
+    code: "ERR_SOCKET_CLOSED",
+  });
+  assert.throws(() => closing.controller.resume(), {
+    code: "ERR_SOCKET_CLOSED",
+  });
+  await assert.rejects(closing.controller.pause(), {
+    code: "ERR_SOCKET_CLOSED",
+  });
+  await assert.rejects(closing.controller.detach(), {
+    code: "ERR_SOCKET_CLOSED",
+  });
+  closing.close.resolve();
+  await firstClose;
 });
 
 test("close preempts pause and detach without losing their boundaries", async () => {
@@ -352,12 +578,42 @@ test("preserves EventEmitter ordering, meta-events, monitoring, and synthetic is
   assert.ok(observed.some((entry) => entry[0] === "remove"));
 });
 
+test("consumes and rearms when no message listener is registered", async () => {
+  const emitter = new EventEmitter();
+  const harness = controllerHarness({
+    dispatchMessage(message) {
+      assert.equal(emitter.emit("message", message), false);
+    },
+  });
+  harness.controller.start();
+  await flushMicrotasks();
+  harness.receives[0].resolve("unobserved");
+  await flushMicrotasks(6);
+  assert.equal(harness.receives.length, 2);
+  await harness.controller.pause();
+});
+
 test("listener exceptions and rejection capture retain Node process channels", async () => {
   const expected = {
     "message-throw": ["uncaughtException", "running", "listener-threw"],
     "missing-error": ["uncaughtException", "paused", "receive-failure"],
     "default-rejection": ["unhandledRejection", "running", "listener-rejected"],
     "captured-rejection": ["error", "running", "captured-listener-rejection"],
+    "error-listener-throw": [
+      "uncaughtException",
+      "paused",
+      "error-listener-threw",
+    ],
+    "monitor-only-error": [
+      "uncaughtException",
+      "paused",
+      "true:receive-failure",
+    ],
+    "close-listener-throw": [
+      "uncaughtException",
+      "closed",
+      "close-listener-threw",
+    ],
   };
   for (const [mode, outcome] of Object.entries(expected)) {
     const result = await runExceptionFixture(mode);

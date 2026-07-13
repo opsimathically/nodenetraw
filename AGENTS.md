@@ -46,8 +46,10 @@ exactly-once close. The package is now the unpublished `0.1.0-rc.2` candidate.
 Its authoritative contract, feasibility audit, and completion report are
 `ai_documentation/19-phase-11-event-api-plan.md`,
 `ai_documentation/20-phase-11-plan-review.md`, and
-`ai_documentation/21-phase-11-report.md`. Native AArch64 remains untested until
-its runner passes.
+`ai_documentation/21-phase-11-report.md`. The adversarial post-implementation
+review and its scheduler/quiescence corrections are recorded in
+`ai_documentation/22-phase-11-implementation-audit.md`. Native AArch64 remains
+untested until its runner passes.
 
 The current source of planning truth is
 [`ai_documentation/00-index.md`](ai_documentation/00-index.md).
@@ -259,3 +261,5 @@ Do not report a change as verified without naming which gates actually ran.
   completeness audit for Phase 11.
 - `ai_documentation/21-phase-11-report.md`: event adapter implementation and
   verification record.
+- `ai_documentation/22-phase-11-implementation-audit.md`: post-implementation
+  race, boundary, test-coverage, and release-health audit.

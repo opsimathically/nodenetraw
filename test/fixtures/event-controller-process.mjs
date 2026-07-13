@@ -1,4 +1,5 @@
-import { EventEmitter } from "node:events";
+import { EventEmitter, errorMonitor } from "node:events";
+import { setImmediate } from "node:timers";
 
 import { EventReceiveController } from "../../dist/internal/event-controller.js";
 
@@ -6,6 +7,8 @@ const mode = process.argv[2];
 const events = new EventEmitter();
 let receives = 0;
 let controller;
+let closePromise;
+let errorMonitored = false;
 
 function report(channel, value) {
   process.stdout.write(
@@ -18,7 +21,11 @@ const driver = {
   receive() {
     receives += 1;
     if (receives > 1) return new Promise(() => undefined);
-    if (mode === "missing-error") {
+    if (
+      mode === "missing-error" ||
+      mode === "error-listener-throw" ||
+      mode === "monitor-only-error"
+    ) {
       return Promise.reject({ kind: "system", marker: "receive-failure" });
     }
     return Promise.resolve("message");
@@ -94,9 +101,38 @@ if (mode === "message-throw") {
   capturedEvents.on("error", (reason) => {
     report("error", reason);
   });
+} else if (mode === "error-listener-throw") {
+  events.on("error", () => {
+    throw new Error("error-listener-threw");
+  });
+  process.once("uncaughtException", (error) => {
+    report("uncaughtException", error.message);
+  });
+} else if (mode === "monitor-only-error") {
+  events.on(errorMonitor, () => {
+    errorMonitored = true;
+  });
+  process.once("uncaughtException", (error) => {
+    report(
+      "uncaughtException",
+      `${String(errorMonitored)}:${String(error.context?.marker)}`,
+    );
+  });
+} else if (mode === "close-listener-throw") {
+  events.on("close", () => {
+    throw new Error("close-listener-threw");
+  });
+  process.once("uncaughtException", (error) => {
+    setImmediate(() => {
+      void closePromise.then(() => {
+        report("uncaughtException", error.message);
+      });
+    });
+  });
 } else {
   throw new Error(`unknown mode: ${mode}`);
 }
 
 controller = new EventReceiveController(driver);
-controller.start();
+if (mode === "close-listener-throw") closePromise = controller.close();
+else controller.start();

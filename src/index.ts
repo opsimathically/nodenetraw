@@ -2068,18 +2068,34 @@ export class RawSocket {
     operation: string,
   ): boolean {
     if (signal === undefined) return false;
-    if (signal.aborted) {
+    const abort = (): void => {
+      try {
+        nativeBinding.nativeCancel(this.#handle, operationId);
+      } catch (error) {
+        const pending = takePendingOperation(this.#state, operationId);
+        pending?.reject(normalizeUnknownError(error, operation));
+      }
+    };
+    try {
+      if (signal.aborted) {
+        takePendingOperation(this.#state, operationId);
+        reject(abortedError(operation));
+        return true;
+      }
+      signal.addEventListener("abort", abort, { once: true });
+      addPendingFinalizer(this.#state, operationId, () => {
+        signal.removeEventListener("abort", abort);
+      });
+    } catch (error) {
+      try {
+        signal.removeEventListener("abort", abort);
+      } catch {
+        // A hostile AbortSignal-like value cannot prevent operation cleanup.
+      }
       takePendingOperation(this.#state, operationId);
-      reject(abortedError(operation));
+      reject(normalizeUnknownError(error, operation));
       return true;
     }
-    const abort = (): void => {
-      nativeBinding.nativeCancel(this.#handle, operationId);
-    };
-    signal.addEventListener("abort", abort, { once: true });
-    addPendingFinalizer(this.#state, operationId, () => {
-      signal.removeEventListener("abort", abort);
-    });
     return false;
   }
 }
@@ -2098,10 +2114,12 @@ export class RawSocketEventEmitter extends EventEmitter<RawSocketEventMap> {
         "socket must be a RawSocket returned by this module",
       );
     }
-    const configured = validateRawSocketEventEmitterOptions(
-      options,
-      socket.family,
-    );
+    let configured: ClaimedReceiveOptions;
+    try {
+      configured = validateRawSocketEventEmitterOptions(options, socket.family);
+    } catch (error) {
+      throw normalizeUnknownError(error, "createRawSocketEventEmitter");
+    }
     if (!internals.isOpen()) {
       throw socketClosedError("createRawSocketEventEmitter");
     }
@@ -2367,13 +2385,7 @@ function validateDestination(destination: string): void {
 }
 
 function validateSignal(signal: unknown, operation: string): void {
-  if (
-    signal !== undefined &&
-    (typeof signal !== "object" ||
-      signal === null ||
-      typeof (signal as AbortSignal).aborted !== "boolean" ||
-      typeof (signal as AbortSignal).addEventListener !== "function")
-  )
+  if (signal !== undefined && !(signal instanceof AbortSignal))
     throw invalidArgument(operation, "signal must be an AbortSignal");
 }
 

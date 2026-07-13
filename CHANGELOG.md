@@ -21,6 +21,9 @@ release-candidate APIs may change before `0.1.0`.
   Worker coverage.
 - Document synchronous listener semantics, async rejection behavior, kernel
   buffering, explicit adapter lifetime, and promise-versus-event API selection.
+- Correct same-turn pump replacement and non-abort pause/detach race handling;
+  harden genuine AbortSignal getter/listener failures so pending claims and
+  finalizers cannot be stranded.
 
 ## 0.1.0-rc.1 - 2026-07-12
 

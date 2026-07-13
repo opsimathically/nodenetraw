@@ -12,6 +12,9 @@ bounded `receiveMessage()` operation and Node's built-in `node:events`; no Rust,
 syscall, N-API, unsafe-code, or production dependency change was required.
 
 The unpublished package candidate is now `0.1.0-rc.2`. Nothing was published.
+The later adversarial implementation review found and corrected three race and
+boundary-cleanup gaps; its superseding health evidence is recorded in
+`22-phase-11-implementation-audit.md`.
 
 ## Implemented surface
 
@@ -114,8 +117,9 @@ unchanged. Phase 11 adds no native allocation or unsafe block.
 
 The following passed locally on x86-64 Linux with Node 26 and Rust 1.97.0:
 
-- `npm run ci`: the complete unprivileged gate passed, including 23 ordinary
-  Node tests with 11 privileged tests visibly skipped;
+- `npm run ci`: the complete unprivileged gate passed; the post-implementation
+  audit expanded this to 36 ordinary Node tests with 11 privileged tests visibly
+  skipped;
 - `npm test`: ordinary build, consumer declaration fixture, and Node tests;
 - `npm run lint`, `npm run typecheck`, and `npm run format:check`;
 - `npm run rust:fmt`, `npm run rust:clippy`, and `npm run rust:test`: 38 Rust
@@ -124,10 +128,11 @@ The following passed locally on x86-64 Linux with Node 26 and Rust 1.97.0:
   reviewed Rust packages;
 - isolated privileged Node 26 Docker network namespace with only
   `CAP_NET_ADMIN`/`CAP_NET_RAW`: 11 of 11 privileged tests passed;
-- Phase 9 ring stress: 256 cycles, descriptors 21 before/after, RSS delta
-  1,146,880 bytes;
-- Phase 11 event stress: 256 sockets and 1,024 lifecycle cycles, descriptors 21
-  before/after, RSS delta 8,519,680 bytes;
+- Phase 9 ring stress: 256 cycles, descriptors 21 before/after; the latest audit
+  run measured an RSS delta of 917,504 bytes;
+- Phase 11 event stress: 256 sockets, 256 same-turn cycles, and 1,024 active
+  lifecycle cycles, descriptors 21 before/after; the latest audit run measured
+  an RSS delta of 8,257,536 bytes;
 - `npm run release:consumer-test`: optimized assembly, package install with
   scripts disabled, ESM, synchronous `require(esm)`, event export, and internal
   subpath rejection passed;

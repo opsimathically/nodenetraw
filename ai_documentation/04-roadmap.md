@@ -362,8 +362,8 @@ finalizers, runtime-authenticated lane claims, close observers, public typed
 EventEmitter, declaration fixture, listener subprocess probes, genuine
 multi-message namespace coverage, Worker teardown, and repeat-cycle fd/RSS
 stress are implemented. No Rust, syscall, N-API, unsafe-code, or production
-dependency change was required. See the
-[Phase 11 report](21-phase-11-report.md).
+dependency change was required. See the [Phase 11 report](21-phase-11-report.md)
+and the corrective [implementation audit](22-phase-11-implementation-audit.md).
 
 ## Cross-phase rule
 

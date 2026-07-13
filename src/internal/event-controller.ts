@@ -59,7 +59,9 @@ export class EventReceiveController<Message, DetachValue> {
   readonly #driver: EventControllerDriver<Message, DetachValue>;
   #status: EventControllerStatus = "idle";
   #generation = 0;
-  #pumpScheduled = false;
+  // Identity, rather than a boolean, lets a same-turn resume replace a stale
+  // queued pump without allowing that stale task to clear the replacement.
+  #scheduledPump: symbol | undefined;
   #turnActive = false;
   #turnController: AbortController | undefined;
   #pauseDeferred: Deferred<undefined> | undefined;
@@ -241,13 +243,19 @@ export class EventReceiveController<Message, DetachValue> {
   }
 
   #schedulePump(): void {
-    if (this.#status !== "running" || this.#turnActive || this.#pumpScheduled) {
+    if (
+      this.#status !== "running" ||
+      this.#turnActive ||
+      this.#scheduledPump !== undefined
+    ) {
       return;
     }
-    this.#pumpScheduled = true;
+    const scheduledPump = Symbol("scheduledEventReceivePump");
+    this.#scheduledPump = scheduledPump;
     const generation = this.#generation;
     queueMicrotask(() => {
-      this.#pumpScheduled = false;
+      if (this.#scheduledPump !== scheduledPump) return;
+      this.#scheduledPump = undefined;
       if (
         generation !== this.#generation ||
         this.#status !== "running" ||
@@ -261,6 +269,7 @@ export class EventReceiveController<Message, DetachValue> {
 
   #invalidatePump(): void {
     this.#generation += 1;
+    this.#scheduledPump = undefined;
   }
 
   #admitTurn(): void {
@@ -325,9 +334,22 @@ export class EventReceiveController<Message, DetachValue> {
       return;
     }
 
-    this.#status = "paused";
-    this.#pauseDeferred = deferred<undefined>();
-    this.#pausePromise = this.#pauseDeferred.promise;
+    if (this.#status === "detaching") {
+      // Detach still owns the quiescence boundary when cancellation loses to
+      // a real receive failure. Dispatch the failure, then finish detaching.
+      this.#queueError(error);
+      return;
+    }
+
+    if (this.#status === "pausing") {
+      // Preserve the existing pause deferred; replacing it would strand the
+      // Promise returned before this receive failure won the abort race.
+      this.#status = "paused";
+    } else {
+      this.#status = "paused";
+      this.#pauseDeferred = deferred<undefined>();
+      this.#pausePromise = this.#pauseDeferred.promise;
+    }
     this.#queueError(error);
   }
 

@@ -18,6 +18,10 @@ async function cycle(index) {
   source.on("error", (error) => {
     throw error;
   });
+  const sameTurnPause = source.start().pause();
+  source.resume();
+  await sameTurnPause;
+  await setImmediate();
   for (let lifecycle = 0; lifecycle < LIFECYCLE_CYCLES; lifecycle += 1) {
     source.start();
     await setImmediate();
@@ -54,6 +58,7 @@ assert.ok(rssAfter - rssBefore < 32 * 1024 * 1024);
 stdout.write(
   `${JSON.stringify({
     iterations: ITERATIONS,
+    sameTurnCyclesPerIteration: 1,
     lifecycleCyclesPerIteration: LIFECYCLE_CYCLES,
     descriptorsBefore,
     descriptorsAfter,
