@@ -1,0 +1,5 @@
+# Independently specified Ethernet II / IPv4 / UDP fixture.
+# dst 02:00:00:00:00:02, src 02:00:00:00:00:01, EtherType IPv4
+# IPv4 192.0.2.1 -> 198.51.100.2, id 0x1234, DF, TTL 64, checksum 0x3c62
+# UDP 40000 -> 33434, zero checksum (valid for IPv4), payload deadbeef
+0200000000020200000000010800450000201234400040113c62c0000201c63364029c40829a000c0000deadbeef

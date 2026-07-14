@@ -1,5 +1,11 @@
 [workspace]
-members = ["crates/nodenetraw-native"]
+members = [
+  "crates/nodenet-linux-context",
+  "crates/nodenet-protocols",
+  "crates/nodenetscanner-engine",
+  "crates/nodenetscanner-native",
+  "crates/nodenetraw-native",
+]
 resolver = "3"
 
 [profile.release]

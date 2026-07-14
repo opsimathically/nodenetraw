@@ -97,6 +97,24 @@ process.
 - Received fds in ancillary data are closed immediately unless a future typed
   ownership API explicitly accepts them. Phase 5 does not expose `SCM_RIGHTS`.
 
+### Read-only route-netlink safety
+
+- The network-context crate owns one close-on-exec `NETLINK_ROUTE` descriptor
+  anchored to its creation namespace and never invokes `setns()`.
+- Its request enum can serialize only `RTM_GETLINK`, `RTM_GETADDR`,
+  `RTM_GETROUTE`, `RTM_GETRULE`, and `RTM_GETNEIGH` with request/dump flags. It
+  exposes no create, replace, set, or delete operation.
+- Every datagram, message, attribute, nested level, record family, next-hop
+  list, string, and diagnostic unknown value has an independent ceiling before
+  publication.
+- Kernel sender identity, port/sequence correlation, multipart termination,
+  interruption, overrun, truncation, `ENOBUFS`, error codes, and cross-interface
+  references are checked. An incomplete attempt is discarded in full and no
+  partial state can carry `SnapshotCompleteness::Complete`.
+- Snapshot calls require mutable context access, serializing transactions on the
+  descriptor. At most three complete attempts are made and each receive is
+  timeout-bounded.
+
 ## Abuse and robustness limits
 
 The public API should define sensible maximum packet/buffer sizes and maximum
@@ -169,6 +187,74 @@ local I/O failure reject only after listener/timer/lane cleanup. The convenience
 uses the existing normal receive lane and must conflict deterministically with
 another receiver rather than silently split packets.
 
+## Scanner evolution invariants
+
+The Phase 16–26 scanner work treats packet bytes, netlink messages, target
+descriptions, kernel lengths, clocks, entropy, and JavaScript callbacks as
+untrusted boundaries. Protocol and scheduler crates are syscall-free where
+planned and deny unsafe code. Dependency-owned parse types never cross N-API;
+public values are checked project-owned representations.
+
+Target intervals and exclusions stay compressed. Every interval, port, probe,
+attempt, outstanding-window, deadline, template, result queue, context dump,
+native allocation, and cross-boundary batch has an independent bound. Checked
+arithmetic rejects an impossible Cartesian product before descriptors open.
+Memory must scale with compact inputs, active windows, retained correlation, and
+bounded results rather than total logical probe count.
+
+Network context is read-only. Netlink dumps validate sender, sequence, multipart
+completion, attribute nesting, truncation, and overrun. Incomplete or
+mixed-generation state is never presented as authoritative. Missing ARP/NDP
+state may trigger only an explicitly selected wire probe; it never causes a
+netlink insertion or refresh. Descriptors stay in their creation network
+namespace; the addon never changes namespace from a multithreaded Node process.
+
+Phase 20 subscriptions begin before the initial dump and buffer at most 8,192
+notifications or 8 MiB. Kernel sender identity comes from recvmsg; multicast
+header sequence and port are not assumed to be zero because Linux may preserve
+the userspace request that caused a change. A targeted route result is joined
+only to its captured generation and retried after concurrent publication.
+Overflow, malformed state, abandoned replies, or dangling references invalidate
+the generation and require a bounded resync. The optional context owner has one
+worker, a 1,024-operation admission cap, enqueue-time deadlines, and cooperative
+cancellation; it never creates a thread per route query.
+
+Response correlation binds session, probe family, tuple, attempt, and every
+token the protocol can return. Scheduling seeds are never correlation secrets.
+TCP acknowledgment and token-bearing ICMP can be strong evidence; ARP/NDP,
+direct UDP responses, and short quotes are explicitly weaker tuple/interface/
+window evidence. Checksum-valid replies remain unauthenticated, and silence is
+never mislabeled as proof. Forged, contradictory, duplicate, late, opaque, or
+fragment-incomplete traffic cannot create a stronger terminal result than the
+evidence permits. Token/source-port/identifier reuse is delayed until its grace
+record expires.
+
+The scanner opens no implicit targets or ports, never elevates privilege, and
+does not alter firewall or host network policy. Rate, outstanding work, retry,
+and deadline limits protect both local resources and the addressed network.
+Pause, result backpressure, cancel, close, context invalidation, I/O failure,
+and environment teardown share one deterministic session state machine; positive
+and terminal results are lossless unless explicit close requests counted
+disposal, while only explicitly documented progress telemetry may coalesce.
+Every on-wire setup/probe/retry/cleanup frame consumes the configured rate
+budget. Result capacity is reserved before probe transmission so already-
+admitted work can settle after backpressure stops new sends.
+
+Every admitted JavaScript operation settles exactly once while its environment
+is valid. The scheduler/I/O worker never blocks on N-API callback delivery.
+Environment cleanup first invalidates delivery, then releases and joins native
+state through a teardown-safe asynchronous path, without an unbounded Node-
+thread join or N-API call after teardown.
+
+An extreme backend is conditional. Writable packet rings and AF_XDP UMEM remain
+native-owned with one authoritative producer/consumer and a checked state for
+every frame. Geometry, offsets, indices, ownership flags, and kernel-reported
+lengths are validated before access. Explicit backend requests fail instead of
+silently falling back, and partial initialization restores only state owned by
+the module. No ring or UMEM view crosses N-API. An AF_XDP mode never replaces an
+operator-owned XDP program by default and detaches only an identity-matching
+module-owned attachment.
+
 ## Review checklist for every native export
 
 1. Are all JS inputs type-, range-, and combination-checked?
@@ -186,6 +272,12 @@ another receiver rather than silently split packets.
     progress?
 13. If the kernel returns an unknown message or partial batch, are all bytes and
     per-item outcomes still bounded and initialized?
+14. Is response evidence labeled no stronger than this protocol can prove?
+15. Did every emitted setup, retry, and cleanup frame consume the rate budget?
+16. Can a route or neighbor result race onto the wrong context generation?
+17. Was terminal-result and completion capacity reserved before admitting work?
+18. Can environment cleanup finish without a worker touching invalid N-API or
+    blocking the Node thread indefinitely?
 
 ## Verification strategy
 

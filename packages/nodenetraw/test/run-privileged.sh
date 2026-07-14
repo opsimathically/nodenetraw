@@ -10,12 +10,12 @@ suite=${2:-privileged}
 case "$mode" in
   root|namespace) ;;
   *)
-    echo "usage: sh test/run-privileged.sh root|namespace [privileged|event-stress|traceroute-stress]" >&2
+    echo "usage: sh test/run-privileged.sh root|namespace [privileged|event-stress|traceroute-stress|phase17-protocol]" >&2
     exit 2
     ;;
 esac
 case "$suite" in
-  privileged|event-stress|traceroute-stress) ;;
+  privileged|event-stress|traceroute-stress|phase17-protocol) ;;
   *)
     echo "unknown privileged test suite: $suite" >&2
     exit 2
@@ -85,6 +85,27 @@ run_build_as_owner() {
     "$npm" run build
 }
 
+generate_phase17_vectors_as_owner() {
+  owner=$1
+  home=$2
+  runner=$(command -v runuser || true)
+  cargo="$home/.cargo/bin/cargo"
+  if [ -z "$runner" ] || [ ! -x "$cargo" ]; then
+    echo "runuser and the repository owner's Rust toolchain are required for the Phase 17 namespace test" >&2
+    exit 1
+  fi
+  "$runner" -u "$owner" -- env \
+    HOME="$home" \
+    USER="$owner" \
+    LOGNAME="$owner" \
+    CARGO_HOME="$home/.cargo" \
+    RUSTUP_HOME="$home/.rustup" \
+    PATH="$home/.cargo/bin:/usr/local/bin:/usr/bin:/bin" \
+    "$cargo" run --quiet --locked -p nodenet-protocols --example phase17_vectors
+}
+
+protocol_vectors=
+
 if [ "$(id -u)" -eq 0 ]; then
   owner=${SUDO_USER:-$(stat -c %U "$repository_root")}
   if [ "$owner" != root ]; then
@@ -96,9 +117,15 @@ if [ "$(id -u)" -eq 0 ]; then
     owner_home=$(printf '%s\n' "$owner_entry" | cut -d: -f6)
     node=$(find_node "$owner_home")
     run_build_as_owner "$owner" "$owner_home" "$node"
+    if [ "$suite" = phase17-protocol ]; then
+      protocol_vectors=$(generate_phase17_vectors_as_owner "$owner" "$owner_home")
+    fi
   else
     node=$(find_node "${HOME:-/root}")
     npm run build
+    if [ "$suite" = phase17-protocol ]; then
+      protocol_vectors=$(cargo run --quiet --locked -p nodenet-protocols --example phase17_vectors)
+    fi
   fi
 else
   if [ "$mode" = root ]; then
@@ -111,11 +138,15 @@ else
     exit 1
   fi
   npm run build
+  if [ "$suite" = phase17-protocol ]; then
+    protocol_vectors=$(cargo run --quiet --locked -p nodenet-protocols --example phase17_vectors)
+  fi
 fi
 
 node_bin=$(dirname "$node")
 exec env \
   NODENETRAW_NODE="$node" \
   NODENETRAW_TEST_SUITE="$suite" \
+  NODENETRAW_PROTOCOL_VECTORS="$protocol_vectors" \
   PATH="$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
   sh test/run-namespace.sh

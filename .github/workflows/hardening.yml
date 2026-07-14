@@ -21,6 +21,13 @@ jobs:
           cargo +nightly fuzz run surface --fuzz-dir
           crates/nodenetraw-native/fuzz -- -max_total_time=300
           -rss_limit_mb=2048
+      - run:
+          cargo +nightly fuzz run parse --fuzz-dir crates/nodenet-protocols/fuzz
+          -- -max_total_time=300 -max_len=70000 -rss_limit_mb=2048
+      - run:
+          cargo +nightly fuzz run serialize --fuzz-dir
+          crates/nodenet-protocols/fuzz -- -max_total_time=300 -max_len=70000
+          -rss_limit_mb=2048
 
   sanitizers:
     name: ${{ matrix.sanitizer }} sanitizer
@@ -59,10 +66,11 @@ jobs:
       - run: cargo install cargo-audit --version 0.22.2 --locked
       - run: cargo audit --file Cargo.lock
       - run: cargo audit --file crates/nodenetraw-native/fuzz/Cargo.lock
+      - run: cargo audit --file crates/nodenet-protocols/fuzz/Cargo.lock
       - run: npm run hardening:verify
 
   namespace-stress:
-    name: Packet ring fd/RSS stress
+    name: Packet and context namespace/fd/RSS stress
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -74,3 +82,8 @@ jobs:
       - run: npm ci
       - run: sudo apt-get update && sudo apt-get install --yes iproute2
       - run: npm run hardening:stress
+      - run: npm run test:phase17:namespace
+      - run: npm run test:phase19:namespace
+      - run: npm run test:phase19:stress
+      - run: npm run test:phase20:namespace
+      - run: npm run test:phase20:stress

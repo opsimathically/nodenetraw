@@ -1,0 +1,32 @@
+[package]
+name = "nodenet-protocols"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.97.0"
+license = "MIT"
+publish = false
+
+[features]
+fuzzing = []
+
+[dependencies]
+etherparse = { version = "=0.20.3", default-features = false }
+hmac = { version = "=0.13.0", default-features = false, features = ["zeroize"] }
+sha2 = { version = "=0.11.0", default-features = false }
+subtle = { version = "=2.6.1", default-features = false }
+zeroize = { version = "=1.9.0", default-features = false }
+
+[dev-dependencies]
+stats_alloc = { version = "=0.1.10", default-features = false }
+
+[[bench]]
+name = "foundation"
+harness = false
+
+[lints.rust]
+unsafe_code = "deny"
+warnings = "deny"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"

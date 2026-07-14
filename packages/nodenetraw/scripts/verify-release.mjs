@@ -18,6 +18,19 @@ const fuzzManifest = join(
   "fuzz",
   "Cargo.toml",
 );
+const protocolsManifest = join(
+  repositoryRoot,
+  "crates",
+  "nodenet-protocols",
+  "Cargo.toml",
+);
+const protocolsFuzzManifest = join(
+  repositoryRoot,
+  "crates",
+  "nodenet-protocols",
+  "fuzz",
+  "Cargo.toml",
+);
 const packageJson = JSON.parse(
   readFileSync(join(packageRoot, "package.json"), "utf8"),
 );
@@ -82,7 +95,12 @@ for (const target of ["linux-x64-gnu", "linux-arm64-gnu"]) {
 }
 
 const packages = new Map();
-for (const manifest of [nativeManifest, fuzzManifest]) {
+for (const manifest of [
+  nativeManifest,
+  fuzzManifest,
+  protocolsManifest,
+  protocolsFuzzManifest,
+]) {
   const metadata = spawnSync(
     "cargo",
     [

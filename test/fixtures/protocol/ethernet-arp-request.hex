@@ -1,0 +1,3 @@
+# Independent Ethernet II / ARP request capture vector.
+# 02:00:00:00:00:01 asks for 192.0.2.2 while announcing 192.0.2.1.
+ffffffffffff02000000000108060001080006040001020000000001c0000201000000000000c0000202

@@ -62,6 +62,8 @@ not safe error handling for a library.
 - `npm run rust:fmt`: verify `rustfmt` output.
 - `npm run rust:clippy`: run all-target Clippy with warnings denied.
 - `npm run rust:test`: run Rust unit tests with the committed Cargo lockfile.
+- `npm run test:phase21`: run the deterministic syscall-free scanner-engine
+  suite with virtual time and scripted collaborators.
 - `npm test`: build and run the unprivileged Node tests.
 - Phase 11 adds `npm run test:types`: compile consumer-facing event API fixtures
   against built declarations with no output; `npm test` and `npm run ci` include
@@ -221,6 +223,112 @@ lane conflict, and terminal destination/unreachable outcomes. Router Discovery
 tests assert multicast destinations/TTL and explicit broadcast permission.
 Repeated cancel/close runs retain descriptor and bounded-RSS checks. These
 additions do not make ordinary CI privileged.
+
+### Planned scanner verification layers
+
+Phases 16 through 18 implemented syscall-free Rust golden/round-trip/property
+tests, allocation baselines, pcap replay, and fuzz targets for every protocol
+and nested quote entry point. The existing TypeScript ICMP vectors remain an
+independent oracle. Phase 16 records the exact protocol dependency version,
+features, MSRV, license, advisories, transitive diff, and build scripts before
+the lockfile changes, plus a coverage/ownership matrix for dependency-supported
+versus project-owned codecs and a reviewed correlation-token design. Protocol
+tests distinguish strong TCP/token-bearing ICMP evidence from weaker ARP/NDP,
+UDP, and short-quote matching; they cover ESP/unknown/No-Next-Header stops,
+ICMPv6 pseudo-header checksums, and all RFC 4861 validation predicates.
+
+Phase 16 implements the first layer with these canonical commands:
+
+```sh
+cargo test -p nodenet-protocols --locked
+cargo clippy -p nodenet-protocols --all-targets --all-features --locked -- -D warnings
+npm run fuzz:protocols
+npm run benchmark:protocols
+npm run test:phase17:namespace
+```
+
+The two protocol fuzz targets are `parse` and `serialize` in an independently
+locked cargo-fuzz workspace. `test/fixtures/protocol` is the shared independent
+wire-oracle directory. Allocation tests use a development-only instrumented
+allocator; the runtime protocol graph remains only feature-minimal `etherparse`
+plus `arrayvec`.
+
+Phase 17 expands those targets across Ethernet/VLAN, ARP, IPv4, IPv6 extension
+walking, fragments, and templates. `test:phase17:namespace` generates three
+frames through the Rust builders, injects them through the existing raw packet-
+socket API in a disposable veth namespace, and compares captured ARP, IPv4, and
+IPv6 bytes exactly. Run it directly where unprivileged user namespaces work, or
+with `sudo npm run test:phase17:namespace`; the wrapper still builds Rust/Node
+artifacts as the repository owner so it does not create root-owned outputs.
+
+Phase 19 implements the first read-only network-context layer with these
+canonical commands:
+
+```sh
+cargo test -p nodenet-linux-context --locked
+cargo clippy -p nodenet-linux-context --all-targets --locked -- -D warnings
+npm run test:phase19:namespace
+npm run test:phase19:stress
+```
+
+Phase 20 adds policy-aware route resolution, coherent multicast refresh, pure
+route planning, and the bounded asynchronous context owner. Its additional
+canonical gates are:
+
+```sh
+npm run test:phase20:namespace
+npm run test:phase20:stress
+```
+
+The namespace command creates loopback, veth, VLAN, dual-stack addresses,
+multiple route tables, blackhole/prohibit routes, rules, and fixed ARP/NDP
+neighbors, then compares the complete snapshot with `ip -j` as a test-only
+oracle. Run it with `sudo` where unprivileged user/network namespaces are
+disabled. The stress lane warms the allocator and checks 512 complete snapshots
+for descriptor retention and bounded RSS.
+
+Phases 19 and 20 use synthetic multipart netlink streams plus disposable
+namespace topologies for links, VLANs, dual-stack addresses, routes, rules,
+ECMP, blackhole/prohibit outcomes, and every relevant neighbor state. Tests must
+exercise dump interruption, overrun, `ENOBUFS`, sequence mismatch, malformed
+attributes, notification races, and bounded resync. `ip -j` is a test oracle,
+not a runtime dependency. Syscall tracing must prove no create/set/delete/
+replace network operation. Tests launch the process in the target namespace and
+prove the addon never invokes `setns()`; route-query races must retry rather
+than mislabel a result with a new generation.
+
+Phase 21 is fully privilege-free and uses an injected monotonic virtual clock,
+scripted transport/context/evidence, and deterministic entropy. It runs millions
+of transitions without sleeping and property-tests exclusions, permutations,
+exact deadlines, at-most-once attempts, fairness, backpressure, replay
+determinism, and memory proportional to active state.
+
+Phases 22 and 23 add isolated dual-stack source/router/target namespaces with
+veth/VLAN links and packet capture. They verify live ARP/NDP, ICMP Echo, TCP
+SYN, and UDP open/closed/silent/error outcomes; exact bytes/checksums;
+source/route selection; rate/retry/exclusion ceilings; forged/late response
+rejection; context churn; result saturation; cancel/close; Worker teardown; and
+fd/RSS/native-memory stability. Add loopback/local raw-IP and explicit
+unsupported-link cases; outgoing-loop suppression, VLAN auxdata/offload,
+truncation, drop-counter accounting, cross-session token/port allocation,
+stalled-JavaScript completion delivery, and setup/retry/cleanup traffic rate
+accounting. A captured evidence stream must replay identically through the pure
+engine.
+
+Phase 24 adds scanner-specific declarations, clean consumers, artifact ABI and
+glibc checks, reproducibility, provenance, fuzz/sanitizer/fault gates, and
+native x86-64/AArch64 execution before architecture artifacts can publish. Phase
+25 performance work runs only on fully identified hardware and records kernel,
+driver, NIC, queues, CPU/NUMA, MTU, ring geometry, packet mix, loss, CPU/power,
+and latency. Shared CI never enforces timing thresholds. Conditional Phase 26
+adds hardware/backend parity and ownership fault tests only for the selected
+backend. Phase 25 uses identical preregistered workloads, at least ten steady-
+state repetitions, and a bootstrap 95% confidence interval that must remain
+beyond the accepted threshold.
+
+Scanner commands are introduced by the phase that owns them and then added to
+the root orchestration. Until implementation starts, documentation must not list
+aspirational scripts as runnable commands.
 
 ## CI shape
 

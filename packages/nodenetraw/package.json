@@ -69,6 +69,7 @@
     "test:phase9:stress": "npm run build && sh test/run-phase9-stress-namespace.sh",
     "test:phase11:stress": "sh test/run-privileged.sh root event-stress",
     "test:phase15:stress": "sh test/run-privileged.sh root traceroute-stress",
+    "test:phase17:namespace": "sh test/run-privileged.sh namespace phase17-protocol",
     "hardening:verify": "node scripts/verify-release.mjs",
     "hardening:stress": "npm run test:phase9:stress",
     "fuzz": "cargo +nightly fuzz run surface --fuzz-dir ../../crates/nodenetraw-native/fuzz -- -max_total_time=60",

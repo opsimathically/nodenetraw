@@ -10,14 +10,14 @@ export default tseslint.config(
       "node_modules/",
       "package-lock.json",
       "**/release/",
-      "packages/nodenetraw/test/types/",
+      "**/test/types/",
     ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   {
-    files: ["packages/nodenetraw/src/**/*.ts"],
+    files: ["**/src/**/*.ts"],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -26,13 +26,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ["packages/nodenetraw/src/internal/event-controller.ts"],
+    files: ["**/nodenetraw/src/internal/event-controller.ts"],
     rules: {
       "@typescript-eslint/prefer-promise-reject-errors": "off",
     },
   },
   {
-    files: ["packages/nodenetraw/src/internal/traceroute.ts"],
+    files: ["**/nodenetraw/src/internal/traceroute.ts"],
     rules: {
       "@typescript-eslint/only-throw-error": "off",
       "@typescript-eslint/prefer-promise-reject-errors": "off",

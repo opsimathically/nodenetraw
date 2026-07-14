@@ -10,8 +10,10 @@ decision changes the commands, architecture, safety rules, or repository layout.
 `@opsimathically/nodenetraw` is the implemented, Linux-only native module for
 low-level raw socket capabilities. TypeScript is its public Node-facing
 environment. Rust implements native operations and crosses into Node through
-N-API. `@opsimathically/nodenetscanner` is currently a private planning
-placeholder with no API or implementation.
+N-API. `@opsimathically/nodenetscanner` is a private Phase 23 preview with an
+initial TypeScript control API and Rust-owned portable Linux scan data plane.
+Its shared protocol, deterministic scan-engine, and read-only network-context
+foundations are implemented as internal crates.
 
 The project prioritizes:
 
@@ -77,8 +79,45 @@ policy-snapshot, callback-quiescence, and release-health review is
 The repository is now the private `nodenet` npm/Cargo workspace governed by
 D-030. Existing raw-package source and release tooling live under
 `packages/nodenetraw`, its native crate lives under `crates/nodenetraw-native`,
-and the scanner package remains an intentionally empty private placeholder. The
-structural migration did not change the public API or release version.
+and the scanner package remains a private non-publishable preview while its
+internal Rust foundations and native addon live under `crates/`. The structural
+migration did not change the public API or release version. D-031 accepts the
+next evolution. Phase 18 is complete: scanner-relevant TCP, UDP, ICMPv4, ICMPv6,
+NDP, quoted packet, keyed correlation, evidence-strength, and reuse-grace
+primitives now live in the protocol crate. Phases 19–20 complete read-only
+network context; Phase 21 completes the deterministic scheduler and Phase 22
+adds the portable live scanner; Phase 23 adds scanner batching and Phase 24 adds
+release hardening; Phase 25 is an evidence gate and Phase 26 is conditional.
+Phase 16 is complete: `crates/nodenet-protocols` now owns the bounded protocol
+types, strict/explicit quote parser boundary, transactional packet output,
+independent fixtures, fuzz targets, and allocation baselines. Phase 17 is
+complete: the protocol crate now owns bounded Ethernet/VLAN, ARP, IPv4, IPv6
+extension/fragment, upper-layer disposition, checksum, and reusable
+frame-template codecs. The authoritative plan is
+`ai_documentation/31-network-and-scanner-evolution-plan.md`. Its
+preimplementation audit is closed in
+`ai_documentation/32-network-evolution-plan-review.md`: Phase 16 has no open
+design blocker, and the review corrections are part of the accepted contract.
+Completion evidence is in `ai_documentation/33-phase-16-report.md` through
+`ai_documentation/40-phase-23-report.md`; D-032 records the implemented
+correlation encoding, D-033 records the route-netlink dependency and read-only
+descriptor boundary, and D-034 records kernel-selected egress plus the bounded
+context owner. D-035 records the deterministic scheduler boundaries. Phase 21 is
+complete: compact target products, seeded scheduling, virtual timing, fairness,
+explicit evidence classification, bounded lifecycle draining, and lossless
+result reservation are implemented without syscalls or unsafe code. Phase 22 is
+complete: `crates/nodenetscanner-native` owns one bounded runtime per Node
+environment, read-only context, raw/packet descriptors, packet buffers, timers,
+secrets, and four portable live sessions. The private scanner package exposes
+explicit plans, context inspection, pull batches, lifecycle, summaries, and
+structured errors for live ARP/NDP, ICMPv4/v6 Echo, TCP SYN, and UDP scans.
+Ordinary gates and the live dual-stack namespace/VLAN matrix pass locally.
+Native AArch64 cross-compilation passes; native AArch64 execution remains a
+publication gate. Phase 23 is complete under D-037: scanner results cross N-API
+as versioned sealed columns rather than per-result objects, TypeScript provides
+lazy rows over transferable Node-owned storage, pulls support worker-ordered
+AbortSignal cancellation, and exact coalesced progress reports bounded
+high/low-water backpressure. The optional Node event layer emits batches only.
 
 The current source of planning truth is
 [`ai_documentation/00-index.md`](ai_documentation/00-index.md).
@@ -163,6 +202,20 @@ The current source of planning truth is
   validation; socket helpers preserve `RawSocket` ownership and receive lanes.
   RFC 4884 legacy framing is explicit opt-in. ICMPv6 codecs are a separate
   future design.
+- D-031 governs scanner evolution. `nodenetraw` remains policy-free;
+  `nodenetscanner` owns its descriptors and native packet hot path without a
+  JavaScript dependency on the raw package. Planned non-published crates are
+  `nodenet-protocols`, `nodenet-linux-context`, and `nodenetscanner-engine`,
+  linked into `nodenetscanner-native`. Network context is read-only and
+  generation-tagged. The portable engine must be release-capable before Phase 25
+  may measure and select one optional extreme backend. Phase 26 cannot begin
+  without a positive recorded evidence decision.
+- D-036 governs the Phase 22 scanner boundary: one joined environment-owned
+  runtime, no descriptor or packet storage across N-API, ordinary
+  `AF_PACKET`/raw-IP transports, session-local neighbor learning, structured
+  terminal failures, and bounded pull batches. Context generation changes
+  invalidate joined probes; terminal wire-correlation state is pruned after its
+  finite late-response grace period rather than growing with the total scan.
 
 ## Expected repository shape
 
@@ -174,8 +227,12 @@ The workspace uses this separation:
   package-specific release tooling, README, and changelog;
 - `crates/nodenetraw-native/` for the Rust N-API crate and its independently
   locked fuzz project;
-- `packages/nodenetscanner/` for a private, non-publishable future-package
-  placeholder only;
+- `packages/nodenetscanner/` for the private, non-publishable Phase 22 scanner
+  TypeScript API, tests, and documentation;
+- implemented `crates/nodenet-protocols/`, `crates/nodenet-linux-context/`, and
+  `crates/nodenetscanner-engine/` as non-published, N-API-free Rust libraries;
+- `crates/nodenetscanner-native/` for the scanner's environment runtime, Linux
+  sockets, packet path, and N-API adapter;
 - `.github/workflows/ci.yml` for the unprivileged x86-64 quality gate;
 - Rust-local unit tests for native invariants;
 - `ai_documentation/` for plans, decisions, risks, and progress context.
@@ -183,10 +240,12 @@ The workspace uses this separation:
 Use npm workspaces rather than `npm link`. Keep one root `package-lock.json` and
 one root Cargo workspace lock. Public packages version independently; internal
 shared Rust crates must be `publish = false` and cross package boundaries only
-at compile time. Do not make `nodenetraw` depend on scanner policy. Do not add
-scanner code during raw-package maintenance without an accepted scanner plan.
-The private root and package source trees both refuse direct publication;
-publish only inspected output under a package's `release/stage` directory.
+at compile time. Do not make `nodenetraw` depend on scanner policy or make the
+scanner call `nodenetraw` through JavaScript/borrow its descriptors. Do not move
+raw reactor internals into a shared crate without a demonstrated shared contract
+and regression/benchmark evidence. The private root and package source trees
+both refuse direct publication; publish only inspected output under a package's
+`release/stage` directory.
 
 Do not commit generated package output, native build artifacts, coverage data,
 or dependency directories.
@@ -208,6 +267,26 @@ or dependency directories.
 - Traceroute must use monotonic deadlines, strong direct/quoted probe matching,
   bounded timers/probes/payload/results/in-flight work, cleanup-before-reject,
   and the existing normal receive lane.
+- Follow the Phase 16–26 dependency order. Protocol and scheduler crates stay
+  syscall-free where planned; all target products, parser allocations, netlink
+  dumps, active windows, correlation retention, result queues, batches, and
+  native memory are independently bounded.
+- Treat evidence strength by protocol: TCP acknowledgment and token-bearing ICMP
+  may be strong; ARP/NDP, direct UDP, and short quotes are weaker
+  unauthenticated evidence. Never reuse a source port/identifier while an
+  outstanding or grace record could make correlation ambiguous, and never use
+  the reproducible scheduling seed as a correlation secret.
+- Scanner route context may issue only read/query/subscribe `NETLINK_ROUTE`
+  operations. Never mutate links, addresses, routes, rules, neighbors, firewall
+  state, qdiscs, namespaces, sysctls, or BPF state in portable phases.
+- The first portable link matrix is Ethernet II with up to two VLAN tags and
+  loopback/local raw IP. Reject other link types and encapsulation explicitly.
+  Never call `setns()`; tests launch Node in the desired namespace.
+- Keep raw packets in Rust by default. JavaScript configures compact plans and
+  consumes sealed bounded result batches. Never expose packet-ring or UMEM
+  storage through N-API.
+- Do not begin an extreme backend before Phase 24 is release-capable and Phase
+  25 records that one backend meets its performance/accuracy threshold.
 - Prefer additive, reviewable API slices over attempting every raw socket
   feature in one change.
 - Pair each exported native operation with argument validation, lifecycle
@@ -257,6 +336,24 @@ Install reproducibly with `npm ci`. The supported commands are:
 - `sudo npm run test:phase15:stress`: 256 isolated traceroute cancellation and
   normal-lane reuse cycles with descriptor and bounded RSS checks. The build
   runs as the repository owner.
+- `npm run test:phase20:namespace`: policy routing, gateway/on-link, ECMP,
+  neighbor, link-down, and concurrent notification/query behavior in a
+  disposable topology.
+- `npm run test:phase20:stress`: 1,024 targeted lookups and repeated
+  asynchronous context-owner lifecycle with descriptor and bounded RSS checks.
+- `npm run test:phase21`: privilege-free deterministic scanner-engine tests with
+  virtual time, scripted collaborators, million-scale scheduling/timing,
+  lifecycle boundaries, and bounded-state assertions.
+- `npm run test:phase22`: scanner native/unit, strict TypeScript declaration,
+  capability-free context/API, resource-limit, and structured permission tests.
+- `npm run test:phase22:namespace`: live loopback plus dual-stack veth/VLAN
+  ARP/NDP, ICMPv4/v6 Echo, TCP SYN, and UDP open/closed tests. The wrapper uses
+  an unprivileged user namespace when available and supports `sudo` otherwise.
+- `npm run test:phase23`: compact schema, lazy decoding, mutation/transfer,
+  AbortSignal, progress, event-adapter, native unit, and ordinary boundary
+  tests.
+- `npm run test:phase23:namespace`: Phase 23 batches and progress over the live
+  loopback plus dual-stack veth/VLAN scanner matrix.
 - `npm run hardening:verify`: release version, platform, license, dependency,
   target-manifest, and production advisory policy.
 - `npm run fuzz`: one minute of syscall-free parser/serializer libFuzzer work;
@@ -339,3 +436,27 @@ Do not report a change as verified without naming which gates actually ran.
   release-health audit.
 - `ai_documentation/30-monorepo-migration-report.md`: workspace boundaries,
   migration changes, and verification evidence.
+- `ai_documentation/31-network-and-scanner-evolution-plan.md`: accepted Phase
+  16–26 protocol, context, scheduler, batching, release, and conditional
+  performance-backend contract.
+- `ai_documentation/32-network-evolution-plan-review.md`: closed
+  preimplementation correctness/readiness audit and corrections for Phases
+  16–26.
+- `ai_documentation/33-phase-16-report.md`: protocol foundation, dependency,
+  allocation, fuzz, and cross-target evidence.
+- `ai_documentation/34-phase-17-report.md`: link/internet codec, template,
+  boundary, differential, namespace-capture, fuzz, and benchmark evidence.
+- `ai_documentation/35-phase-18-report.md`: transport/control codec,
+  correlation, hostile-input, fuzz, and dependency evidence.
+- `ai_documentation/36-phase-19-report.md`: bounded route-netlink snapshot,
+  namespace-oracle, fd/RSS, syscall-trace, and dependency evidence.
+- `ai_documentation/37-phase-20-report.md`: kernel route selection, coherent
+  refresh, egress planning, and bounded context-owner evidence.
+- `ai_documentation/38-phase-21-report.md`: deterministic scanner planning,
+  scheduling, classification, lifecycle, and virtual-test evidence.
+- `ai_documentation/39-phase-22-report.md`: portable live scanner runtime,
+  TypeScript/N-API API, socket-path, namespace-matrix, and verification
+  evidence.
+- `ai_documentation/40-phase-23-report.md`: compact scanner batches,
+  backpressure, progress, abortable pulls, event adapter, and verification
+  evidence.

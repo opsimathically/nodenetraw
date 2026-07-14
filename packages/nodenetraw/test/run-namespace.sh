@@ -87,6 +87,10 @@ if [ "${NODENETRAW_IN_NAMESPACE:-0}" = "1" ]; then
     traceroute-stress)
       exec "$node" test/phase15-traceroute-stress.mjs
       ;;
+    phase17-protocol)
+      exec env NODENETRAW_PROTOCOL_NAMESPACE_TESTS=1 \
+        "$node" --test test/phase17-protocol-namespace.test.mjs
+      ;;
     *)
       echo "unknown privileged test suite: ${NODENETRAW_TEST_SUITE:-}" >&2
       exit 2

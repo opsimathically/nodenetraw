@@ -392,11 +392,13 @@ rationale to avoid repeating the investigation.
 
 ## Remaining design details
 
-Phases 1 through 15 are implemented and the workspace migration is accepted in
-D-030. Publishing an artifact remains an explicit operator action outside
-implementation. A future scanner engine, shared native crate extraction, ICMPv6
-codec, TX mmap, stream, async-iterator, batch-event, or packet-ring-event slice
-requires its own decision and review.
+Phases 1 through 18 are implemented and the workspace migration is accepted in
+D-030. D-031 accepts the Phase 16–26 scanner evolution boundary; Phase 19 is the
+next implementation phase. Publishing an artifact remains an explicit operator
+action outside implementation. Changes to the accepted scanner package/crate
+boundary, protocol/context scope, portable-first rule, or evidence threshold
+require a new decision. Unrelated raw-package stream, async-iterator, or packet-
+ring-event work remains separately undecided.
 
 ### D-026 — Lossless bounded Node completion backpressure
 
@@ -545,6 +547,237 @@ requires its own decision and review.
   handling. Scanner work cannot expand `nodenetraw`'s public scope implicitly,
   and shared-crate extraction is a later change rather than part of this move.
 
+### D-031 — Portable-first native scanner evolution with internal Rust crates
+
+- Status: accepted and preimplementation-reviewed for Phases 16 through 26;
+  Phase 16 is complete
+- Date: 2026-07-13
+- Decision: evolve in five ordered stages: protocol toolkit, read-only Linux
+  network context, deterministic scheduler plus portable live scanning,
+  scanner-oriented batching and hardening, then an optional evidence-gated
+  extreme backend. `nodenetraw` remains a policy-free public package.
+  `nodenetscanner` owns a separate N-API addon and its descriptors, packet hot
+  loop, timers, correlation, and result storage; it does not call the raw
+  package through JavaScript or borrow a `RawSocket` fd. Add non-published
+  `nodenet-protocols`, `nodenet-linux-context`, and `nodenetscanner-engine`
+  crates without N-API dependencies, plus a `nodenetscanner-native` addon crate.
+  Do not create a third public protocol or context package. Network context uses
+  bounded GET/query/subscription operations only and never mutates host state.
+  Make the ordinary raw/packet-socket engine release-capable before optimizing
+  it. Phase 25 may select one backend only after showing at least 1.5x sustained
+  matched-result throughput or 30% lower CPU at equal verified loss/accuracy;
+  otherwise record `no-go`.
+- Rationale: independent Node packages give users clear capability boundaries,
+  while compile-time Rust sharing and one batch-oriented N-API boundary avoid
+  per-packet composition overhead. A protocol foundation and kernel-derived
+  route context prevent the scheduler from duplicating unsafe parsers or
+  guessing Linux forwarding policy. A pure scheduler makes timing and lifecycle
+  behavior exhaustively testable before privilege and live I/O are introduced.
+  The portable-first gate prevents specialized ring/XDP ownership, privilege,
+  kernel, and hardware requirements from becoming scope without evidence.
+- Consequences: Phase 16 begins with dependency/version/license/advisory
+  revalidation and contains no scanner API or syscall work. Scanner public APIs
+  start only in Phase 22 and use bounded result batches from their first
+  preview. Phase 24 is a complete release outcome; Phases 25 and 26 are not
+  required for project success. AF_XDP may require an explicit XDP program and
+  higher optional platform requirements, but it can never raise the portable
+  installation baseline or silently replace operator-owned BPF state. The
+  detailed resource ceilings, gates, topology, and stop conditions live in
+  `31-network-and-scanner-evolution-plan.md`. The closed preimplementation audit
+  additionally freezes protocol-specific evidence strength, one bounded scanner
+  runtime per Node environment, Ethernet/VLAN/loopback initial support, no
+  `setns()`, generation-race retries, all-frame rate accounting, reserved
+  terminal-result capacity, packet outgoing/VLAN handling, and the repeated
+  95%-confidence performance gate. See `32-network-evolution-plan-review.md`.
+
+### D-032 — Protocol dependency boundary and correlation encoding
+
+- Status: accepted and implemented through the syscall-free Phase 18 boundary;
+  OS entropy injection remains owned by the Phase 22 scanner runtime
+- Date: 2026-07-13
+- Decision: use exact-pinned `etherparse` 0.20.3 with default features disabled
+  behind project-owned types and errors. Dependency lax parsing is exposed only
+  as the explicit `CompatibleIcmpQuote` mode and tolerates truncation, never
+  malformed content. Phase 18 correlation uses HMAC-SHA-256 with a distinct
+  32-byte OS-random session key and constant-time comparison from a reviewed
+  library. The scheduling seed is never key material. The fixed canonical HMAC
+  input is the 16 ASCII bytes `nodenet/probe/v1`, address-family byte (4 or 6),
+  IP-protocol byte, big-endian attempt `u32`, source and destination as two
+  16-byte addresses (IPv4 is twelve zero bytes followed by its four octets),
+  big-endian source port, destination port, ICMP identifier, and ICMP sequence
+  (`u16`, zero when inapplicable), then the big-endian internal probe ID `u64`.
+  The full correlation value is 32 bytes. Token-bearing UDP and ICMP payloads
+  carry the first 16 bytes; compare exactly 16 bytes in constant time after
+  tuple/protocol validation. TCP carries the first four bytes as its sequence
+  number and validates the reply acknowledgement as sequence plus one modulo
+  2^32 after tuple/flag validation. A minimal ICMP quote that omits a token is
+  explicitly weaker evidence and is never upgraded by guesswork.
+- Rationale: the exact dependency pin and wrapper prevent a changing codec API
+  from leaking across crates. HMAC-SHA-256 is a reviewed keyed primitive; fixed-
+  width, domain-separated encoding avoids ambiguous concatenation, while
+  distinct OS entropy prevents reproducible scheduling from making correlation
+  predictable. Truncation reflects real ICMP quotation without accepting
+  malformed packets through a silent fallback.
+- Consequences: Phase 18 exact-pins the selected HMAC and constant-time crates,
+  accepts session-key bytes from the future scanner native runtime, zeroizes its
+  key storage, and tests protocol-specific truncation and comparison rules. The
+  32-bit TCP wire token has an inherent smaller search space than a 128-bit
+  payload token and evidence classification says so. Phase 22 must obtain each
+  session key from OS entropy; the syscall-free protocol crate does not generate
+  entropy.
+
+### D-033 — Minimal read-only route-netlink boundary
+
+- Status: accepted and implemented
+- Date: 2026-07-14
+- Decision: implement Linux context in the non-published, N-API-independent
+  `nodenet-linux-context` crate using exact-pinned `netlink-packet-core` 0.8.1,
+  `netlink-packet-route` 0.31.0, and `netlink-sys` 0.8.8 with default features
+  disabled. Own one `NETLINK_ROUTE` datagram descriptor and expose only bounded
+  immutable GET-dump snapshots. Do not add `rtnetlink`, an async runtime,
+  mutation operations, procfs parsing, subprocess calls, or `setns()`.
+- Rationale: the packet crates remove unsafe duplicated ABI parsing while the
+  syscall crate retains a narrow synchronous descriptor model. Project-owned
+  preflight validation, ceilings, multipart state, normalization, retries, and
+  coherence checks prevent dependency behavior from becoming the trust policy. A
+  descriptor created in the target namespace provides stable namespace identity
+  without unsafe process-wide namespace transitions.
+- Consequences: the crate contains two localized, documented unsafe socket-
+  option calls for `SO_RCVTIMEO` and `SO_NETNS_COOKIE`; all netlink parsing and
+  public records remain safe Rust. Phase 20 extends this same serialized context
+  with query/subscription coherence and may not weaken the read-only request
+  surface or publish records from mixed generations.
+
+### D-034 — Kernel-selected egress and bounded context owner
+
+- Status: accepted and implemented
+- Date: 2026-07-14
+- Decision: extend the Phase 19 descriptor with targeted `RTM_GETROUTE`,
+  subscribed route-netlink multicast refresh, a pure generation-bound route
+  planner, and one optional background `RouteContextDriver`. Linux remains the
+  sole policy/ECMP selector. The driver owns one context on one thread, admits
+  at most 1,024 operations, starts deadlines at enqueue, and exposes cooperative
+  cancellation plus polling or bounded waiting without adding an async runtime.
+- Rationale: user-space longest-prefix or ECMP selection would diverge from
+  Linux rules, marks, UID, and port policy. Subscription-before-dump plus atomic
+  notification application closes snapshot races. A small bounded owner gives
+  the future scanner a nonblocking integration seam without creating a thread
+  per query or committing the workspace to Tokio.
+- Consequences: notifications are authenticated by the kernel recvmsg sender;
+  their header sequence/port may identify the userspace mutation that caused the
+  multicast event and are not required to be zero. Overflow, malformed state,
+  abandoned replies, or generation churn invalidate rather than relabel context.
+  Only Ethernet/VLAN and local/loopback plans are initially usable; other link
+  and encapsulation forms are structured unsupported results.
+
+### D-035 — Deterministic scanner engine and bounded settlement
+
+- Status: accepted and implemented
+- Date: 2026-07-14
+- Decision: implement Phase 21 as the non-published, syscall-free
+  `nodenetscanner-engine` crate. It depends only on `nodenet-protocols` and
+  receives monotonic time, scheduling entropy, context resolution, frame
+  emission, and result capacity through injected traits. Compact target
+  intervals and a checked logical Cartesian product remain lazy; a seeded
+  constant-memory affine permutation determines reproducible order. The public
+  scheduling seed is never a correlation secret.
+- Decision: reserve one terminal result before first emission, charge every
+  setup/probe/retry/TCP-cleanup frame to one exact fixed-point token bucket, and
+  cap active, deferred, grace, target, prefix, and per-drive transition state
+  independently. Timeout equality is terminal (`now >= deadline`); response
+  evidence at that boundary is late and cannot resurrect a result. Pause queues
+  eligible retransmission without sending it. Deadline, cancel, and fatal
+  transport settlement drain through the same 4,096-transition drive budget.
+- Decision: preserve protocol-specific silence semantics and evidence strength.
+  Invalid, forged, duplicate, fragmented, opaque, or insufficient evidence
+  updates diagnostics only. Context and sink collaborator errors preserve the
+  unadmitted or reserved probe so a caller never loses work through a partially
+  advanced scheduler transition.
+- Rationale: separating the state machine from Linux descriptors makes target
+  arithmetic, timing, loss behavior, fairness, replay, and lifecycle boundaries
+  deterministic and exhaustively testable without privilege or wall-clock
+  sleeps. Reservation-before-emission is the simplest proof that slow future
+  JavaScript result consumption cannot force a positive result drop.
+- Consequences: Phase 22 owns packet construction, secrets, correlation, Linux
+  descriptors, route-context adaptation, and multi-session round-robin driving.
+  It must not bypass the engine's emission charge or result reservation seams.
+  The engine itself exposes no N-API or public TypeScript scanner API.
+
+### D-036 — Environment-owned portable scanner runtime and pull API
+
+- Status: accepted and implemented
+- Date: 2026-07-14
+- Decision: implement Phase 22 in a separate `nodenetscanner-native` addon that
+  statically links the protocol, read-only context, and deterministic engine
+  crates. One `epoll`/`eventfd` worker per Node environment owns all session
+  descriptors, packet buffers, timers, context state, and independently random
+  correlation secrets. It multiplexes at most four scanner objects and four
+  active sessions and admits only bounded command and result state.
+- Decision: use `AF_PACKET` for supported Ethernet/VLAN egress and raw IP
+  sockets for loopback/local routes. Missing direct-neighbor state may be
+  learned only from explicit ARP/NDP probes into session-owned state. Receive
+  processing rejects truncation, ignores `PACKET_OUTGOING`, reconstructs a
+  stripped VLAN header from `PACKET_AUXDATA`, and accumulates packet-drop deltas
+  without treating reset-on-read counters as lifetime totals. An explicit
+  `TP_STATUS_CSUMNOTREADY` completes the TCP/UDP checksum in a private copy
+  before strict parsing; it is not a general checksum-validation bypass.
+- Decision: expose explicit immutable scan plans, capability-free context
+  inspection and scanner creation, structured errors, lifecycle controls,
+  terminal summaries, and bounded pull batches. No descriptor or native packet
+  storage crosses N-API. Control tasks may wait for worker replies away from the
+  Node event loop, while the I/O worker never waits for JavaScript delivery.
+  Environment cleanup invalidates admission, wakes the worker, and joins it
+  before the cleanup hook completes.
+- Rationale: a scanner-specific native data plane preserves the raw package's
+  policy-free boundary while avoiding per-packet JavaScript crossings. A pull
+  API and reservation-before-emission make slow JavaScript an explicit bounded
+  backpressure condition rather than an allocation or result-loss hazard.
+- Consequences: the scanner remains private at `0.0.0`; Phase 23 may replace the
+  straightforward object-vector batch representation only through its planned
+  versioned compact schema. The default TCP/UDP source range can interact with
+  host ephemeral users, and raw SYN-ACK replies may provoke host TCP resets; the
+  addon documents these facts and never installs firewall policy. Native AArch64
+  execution and the full privileged namespace matrix remain mandatory before
+  public release.
+
+### D-037 — Versioned scanner batch and backpressure boundary
+
+- Status: accepted and implemented
+- Date: 2026-07-14
+- Decision: freeze scanner result-batch schema version 1 as independently owned
+  columns. Address octets use network byte order with explicit per-row family
+  and scope columns; every fixed-width integer column is little-endian. Zero
+  marks a missing port, state, scope, or evidence value, while `u64::MAX` marks
+  a missing RTT. RTT and terminal timestamp columns contain unsigned nanoseconds
+  relative to the session monotonic origin; the current scheduler provides
+  microsecond resolution widened exactly to nanoseconds. Reason metadata is
+  fatal UTF-8 with bounded `u32` offsets. The schema carries no wall time and no
+  native pointer.
+- Decision: the worker seals plain Rust vectors, the N-API resolve step creates
+  Node buffers, and TypeScript copies each column into an ordinary transferable
+  `ArrayBuffer` before exposing it. Lazy row views, iteration, filtering, and
+  explicit materialization are TypeScript-only. JavaScript mutation or transfer
+  can affect only the retained batch and never native scanner state.
+- Decision: identify every pull monotonically. A worker-ordered cancellation
+  returns an aborted pull only when it precedes delivery; a sealed batch that
+  won the race is delivered. Abort cancels the wait, not the scan. The optional
+  batch event emitter is a one-pull adapter and emits no per-result events.
+- Decision: result admission enters backpressure at the high-water capacity and
+  does not resume until occupancy reaches the half-capacity low-water mark.
+  Receive, expiry, cancellation, close, and result draining remain live. A
+  waiting pull seals immediately at its requested maximum or terminal drain, and
+  otherwise allows one bounded 2 ms worker interval to coalesce newly available
+  rows. Terminal results are never dropped. Progress is a coalesced
+  exact-`bigint` snapshot, and one plan/control command is limited to 65,536
+  items and 4 MiB.
+- Rationale: these boundaries make crossings proportional to result batches,
+  eliminate JS-managed storage from the worker thread, prevent queue
+  oscillation, and preserve deterministic cancellation and teardown ownership.
+- Consequences: schema changes require a new version rather than
+  reinterpretation. A transferred batch becomes explicitly detached in its
+  sending realm. Phase 24 may harden and document this contract but may not
+  silently change its encoding.
+
 ## Research references
 
 Compatibility facts were verified on 2026-07-12 against primary project
@@ -568,6 +801,16 @@ documentation:
 - [Linux socket options and filters](https://man7.org/linux/man-pages/man7/socket.7.html)
 - [Linux kernel timestamping](https://www.kernel.org/doc/html/latest/networking/timestamping.html)
 - [Linux kernel Packet MMAP](https://www.kernel.org/doc/html/latest/networking/packet_mmap.html)
+- Linux kernel route and neighbor netlink specifications,
+  [route](https://www.kernel.org/doc/html/next/networking/netlink_spec/rt-route.html)
+  and
+  [neighbor](https://kernel.org/doc/html/latest/netlink/specs/rt-neigh.html),
+  plus [AF_XDP](https://docs.kernel.org/networking/af_xdp.html), checked for
+  D-031 on 2026-07-13
+- [Nmap port-scanning algorithms](https://nmap.org/book/port-scanning-algorithms.html)
+  and Masscan's official
+  [design description](https://github.com/robertdavidgraham/masscan#design),
+  checked for D-031 on 2026-07-13
 - [nix 0.31.3 socket APIs](https://docs.rs/nix/0.31.3/nix/sys/socket/)
 - [IANA ICMP Parameters](https://www.iana.org/assignments/icmp-parameters/icmp-parameters.xhtml),
   [RFC 792 ICMPv4](https://www.rfc-editor.org/rfc/rfc792.html),

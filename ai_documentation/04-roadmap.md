@@ -518,6 +518,204 @@ ordinary, declaration, privileged, repeated-cancellation stress, consumer,
 artifact, and reproducibility gates pass. See the
 [Phase 15 report](28-phase-15-report.md).
 
+## Phase 16 — Protocol crate foundation
+
+Status: complete on 2026-07-13
+
+Create the syscall-free, non-published `nodenet-protocols` Rust crate.
+Revalidate and exact-pin the narrowly featured codec dependency, establish
+project-owned checked types and strict/compatible parse modes, build only into
+bounded caller storage or owned buffers, and add independent golden vectors,
+fuzz targets, and allocation baselines. The crate has no N-API or unsafe code.
+
+Exit gate: hostile bytes cannot panic or allocate beyond declared packet/header
+bounds; round-trip, golden, fuzz-smoke, dependency/license, x86-64, and AArch64
+target-build gates pass.
+
+Implementation evidence: the non-published `nodenet-protocols` crate owns
+checked wire types, stable structured errors, explicit strict/ICMP-quote parse
+modes, bounded owned copies, and transactional caller-owned packet output.
+Exact-pinned, feature-minimal `etherparse` remains private. Independent golden
+bytes, deterministic hostile/mutation tests, separate parser/serializer fuzz
+targets, allocation assertions, and a microbenchmark baseline are in place. See
+the [Phase 16 report](33-phase-16-report.md).
+
+## Phase 17 — Link and internet protocols
+
+Status: complete (2026-07-13)
+
+Implement bounded Ethernet II, VLAN, ARP, IPv4, IPv6, fragment, extension-
+header, and reusable frame-template support. Keep fragment state explicit and
+attempt transport parsing only when its bytes are semantically present.
+
+Exit gate: canonical L2/L3 construction and parsing pass independent capture
+vectors; malformed lengths/nesting/fragments fail without ambiguity; and every
+checked template patch is byte-identical to a full rebuild.
+
+## Phase 18 — Transport, control, and correlation protocols
+
+Status: complete (2026-07-13)
+
+Add scanner-relevant TCP, UDP, ICMPv4, ICMPv6, and IPv6 Neighbor Discovery
+codecs plus session-keyed TCP/ICMP/UDP correlation evidence. Preserve unknown
+bounded options, distinguish checksum rules accurately, and reuse existing
+TypeScript ICMP fixtures as an independent oracle.
+
+Exit gate: ARP, NDP Neighbor Solicitation, ICMPv4/v6 Echo, TCP SYN, and UDP
+probes can be built and correlated at their documented protocol-specific
+evidence strength without scheduler- or N-API-owned byte parsing; forged,
+fragmented, quoted, late, and malformed traffic matrices pass.
+
+## Phase 19 — Bounded read-only Linux network snapshot
+
+Status: complete (2026-07-14)
+
+Create the non-published `nodenet-linux-context` crate. Use narrowly reviewed
+netlink packet/syscall crates to perform bounded `NETLINK_ROUTE` GET dumps for
+links, addresses, routes, necessary rules, and neighbors. Validate sender,
+sequence, multipart completion, nested attributes, overruns, interruption, and
+churn; bind to the descriptor's current network namespace without `setns()` and
+publish no partial snapshot as complete.
+
+Exit gate: namespace snapshots are deterministic, generation-ready, bounded, and
+comparable to `ip -j` test oracles, while syscall tracing proves the library
+issues no netlink create, set, delete, or replace operation.
+
+The non-published context crate owns one namespace-anchored route-netlink
+descriptor and publishes sorted immutable snapshots only after all bounded GET
+dumps and interface-reference checks pass. Synthetic hostile streams,
+unprivileged live snapshots, disposable dual-stack/veth/VLAN namespaces, `ip -j`
+parity, repeated fd/RSS checks, and syscall tracing pass. See the
+[Phase 19 report](36-phase-19-report.md).
+
+## Phase 20 — Kernel route resolution and coherent refresh
+
+Status: completed on 2026-07-14
+
+Use targeted `RTM_GETROUTE` requests so Linux policy chooses source, interface,
+gateway, table, MTU, and ECMP. Join resolution to one immutable generation,
+model neighbor states without mutation, subscribe before initial dump, buffer
+changes within a fixed limit, retry a route query whose generation changes, and
+invalidate/resync on overflow or ambiguity. Freeze initial support to
+Ethernet/VLAN and loopback; reject other links/encapsulation explicitly.
+
+Exit gate: policy route, gateway/on-link, ECMP, unreachable, link-change,
+neighbor-missing, notification-race, and resync scenarios pass; every result
+identifies its complete context generation.
+
+Completion evidence: [Phase 20 report](37-phase-20-report.md).
+
+## Phase 21 — Syscall-free deterministic scan scheduler
+
+Status: complete on 2026-07-14
+
+Create `nodenetscanner-engine` with injected clock, transport, context, entropy,
+and result sink. Normalize compact target ranges/exclusions, permute logical
+probe indices reproducibly, and schedule explicit ARP/NDP link-neighbor, ICMP
+Echo, TCP SYN, and UDP work with checked counts, adaptive timing, token-bucket
+rate control, fairness, retry limits, late-response grace, evidence-based
+classification, and bounded result backpressure. Every emitted setup, probe,
+retry, and cleanup frame consumes the configured rate budget.
+
+Exit gate: millions of virtual-clock transitions and property tests prove exact
+deadlines, at-most-once tuples per attempt, exclusions, fairness, deterministic
+replay, lifecycle races, and memory proportional to active state rather than
+total targets.
+
+Completion evidence: [Phase 21 report](38-phase-21-report.md).
+
+## Phase 22 — Portable live scanner and initial Node API
+
+Status: complete
+
+Activate the private scanner package and add `nodenetscanner-native`. Its Rust
+addon owns ordinary nonblocking raw/packet sockets, context, scheduling, packet
+I/O, secrets, and bounded result storage. Expose scanner/session lifecycle,
+explicit scan plans, context inspection, summaries, and a bounded `nextBatch()`
+pull API from the first preview. Do not depend on the `nodenetraw` JavaScript
+package or expose descriptors. Use one bounded runtime per Node environment;
+keep N-API completion backpressure off its scheduler/I/O worker, ignore
+`PACKET_OUTGOING`, interpret VLAN auxdata, and use raw IP rather than invented
+Ethernet headers on loopback/local routes.
+
+Exit gate: isolated dual-stack topologies accurately exercise live ARP/NDP,
+ICMPv4/v6 Echo, TCP SYN, and UDP scanning; capture proves bytes, rate, retries,
+exclusions, source/route selection, and no host-policy mutation; slow JavaScript
+consumers cannot cause unbounded memory.
+
+Completion evidence: [Phase 22 report](39-phase-22-report.md). The ordinary
+native/Node gates and isolated live dual-stack namespace/VLAN matrix pass
+locally. Native AArch64 cross-compilation passes; native AArch64 execution
+remains a publication gate.
+
+## Phase 23 — Scanner-oriented batching and backpressure
+
+Status: complete
+
+Freeze a versioned compact columnar result schema with explicit families and
+byte order, sealed Node-owned storage, lazy TypeScript row access, bounded
+dynamic command batches, lossless high/low-water result backpressure, coalesced
+progress counters, one pending pull, AbortSignal handling, and an optional
+batch-event adapter. No per-result event mode or native mapping crosses N-API.
+
+Exit gate: N-API calls scale with batches rather than probes; saturation pauses
+new transmission without result loss or deadlock; retained, mutated,
+transferred, cancelled, and teardown batch cases remain safe.
+
+Completion evidence: [Phase 23 report](40-phase-23-report.md). Schema version 1,
+lazy TypeScript rows, Node-owned transferable storage, worker-ordered abortable
+pulls, progress snapshots, high/low-water result hysteresis, bounded controls,
+and the optional batch-event adapter are implemented. Ordinary and live
+namespace gates pass locally; AArch64 native execution remains a publication
+gate.
+
+## Phase 24 — Portable scanner hardening and release candidate
+
+Status: planned; depends on Phase 23
+
+Stabilize API/errors/lifecycle/schema/probe support; complete documentation,
+fuzzing, hostile-value tests, sanitizers, fault injection, Worker and memory/fd
+stress, benchmarks, independent target-package assembly, consumer tests,
+reproducibility, provenance, ABI, and native architecture gates. Only this phase
+advances the scanner from private `0.0.0` to unpublished `0.1.0-rc.1`.
+
+Exit gate: the portable scanner is independently accurate, bounded, documented,
+reproducible, and publishable on its declared matrix. This is a complete useful
+outcome even if no extreme backend follows.
+
+## Phase 25 — Extreme-backend evidence gate
+
+Status: planned; depends on Phase 24
+
+Profile and prototype portable mmsg, `PACKET_MMAP` TX/RX, and AF_XDP paths on
+fully recorded hardware. Select exactly one next backend only if at least ten
+same-hardware repetitions and a bootstrap 95% confidence interval deliver at
+least 1.5x sustained matched-result throughput at no greater CPU budget or 30%
+lower CPU at equal throughput and accuracy/loss, without weakening ownership or
+cleanup. Otherwise record a `no-go` and stop.
+
+Exit gate: a decision record selects `no-go`, `PACKET_MMAP`, or experimental
+AF_XDP with explicit kernel/driver/ownership requirements. The portable package
+baseline remains unchanged.
+
+## Phase 26 — Conditional extreme backend and parity
+
+Status: conditional; starts only after a positive Phase 25 decision
+
+Implement the one selected backend behind the same engine/result contract. Keep
+every writable ring and UMEM frame native-owned with checked geometry and
+single-producer/single-consumer ownership; provide explicit engine selection,
+creation-time-only fallback, portable-result parity, and complete partial-init,
+interface-removal, cancellation, teardown, and state-restoration tests.
+
+Exit gate: the final backend repeats the Phase 25 improvement threshold, matches
+portable classifications, and passes sanitizer/stress/fault cleanup. Otherwise
+it remains experimental and portable remains default.
+
+The exact Phase 16–26 deliverables, bounds, APIs, dependency gates, test
+topologies, research basis, and stop conditions are authoritative in the
+[network and scanner evolution plan](31-network-and-scanner-evolution-plan.md).
+
 ## Cross-phase rule
 
 Do not expand breadth while a known descriptor-lifetime, buffer-lifetime,

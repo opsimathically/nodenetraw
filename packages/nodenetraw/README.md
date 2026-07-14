@@ -30,7 +30,9 @@ The package is developed in the `nodenet` monorepo and is intended to remain
 Node's policy-free, memory-safe bridge to Linux raw packet networking. Scanner
 policy and orchestration belong to the separate planned `nodenetscanner`
 package; reusable performance-sensitive Rust code may be shared at compile time
-without expanding this package's public scope.
+without expanding this package's public scope. The separation and phased scanner
+design are documented in the
+[network and scanner evolution plan](../../ai_documentation/31-network-and-scanner-evolution-plan.md).
 
 The project is intended to become Node's memory-safe bridge to Linux raw packet
 networking: IPv4 and IPv6 raw IP, `AF_PACKET`, message flags and ancillary data,

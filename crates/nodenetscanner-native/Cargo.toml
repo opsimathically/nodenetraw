@@ -1,0 +1,30 @@
+[package]
+name = "nodenetscanner-native"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.97.0"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+napi = { version = "=3.10.4", default-features = false, features = ["napi10"] }
+napi-derive = { version = "=3.5.10", default-features = false, features = ["strict", "type-def"] }
+nix = { version = "=0.31.3", default-features = false, features = ["net", "socket", "uio"] }
+rustix = { version = "=1.1.4", default-features = false, features = ["event", "fs", "net", "std", "time"] }
+nodenet-linux-context = { path = "../nodenet-linux-context" }
+nodenet-protocols = { path = "../nodenet-protocols" }
+nodenetscanner-engine = { path = "../nodenetscanner-engine" }
+
+[build-dependencies]
+napi-build = "=2.3.2"
+
+[lints.rust]
+unsafe_code = "warn"
+warnings = "deny"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"

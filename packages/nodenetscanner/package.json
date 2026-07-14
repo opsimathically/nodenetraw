@@ -2,10 +2,57 @@
   "name": "@opsimathically/nodenetscanner",
   "version": "0.0.0",
   "private": true,
-  "description": "Reserved workspace for a future Linux-native Node.js network scanner",
+  "description": "A bounded Linux-native network scanner for Node.js",
   "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "type": "module",
   "engines": {
     "node": ">=26.0.0",
     "npm": ">=11.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "build/native/binding.cjs",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npm run build:native && npm run build:typescript",
+    "build:native": "napi build --manifest-path ../../crates/nodenetscanner-native/Cargo.toml --platform --output-dir build/native --js binding.cjs --dts binding.d.ts -- --locked",
+    "build:typescript": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs --max-warnings 0",
+    "lint:fix": "eslint . --config ../../eslint.config.mjs --fix --max-warnings 0",
+    "format": "prettier --config ../../.prettierrc.json --ignore-path ../../.prettierignore --write .",
+    "format:check": "prettier --config ../../.prettierrc.json --ignore-path ../../.prettierignore --check .",
+    "rust:fmt": "cargo fmt --manifest-path ../../crates/nodenetscanner-native/Cargo.toml --check",
+    "rust:clippy": "cargo clippy --manifest-path ../../crates/nodenetscanner-native/Cargo.toml --all-targets --locked -- -D warnings",
+    "rust:test": "cargo test --manifest-path ../../crates/nodenetscanner-native/Cargo.toml --locked",
+    "test": "npm run build && npm run test:types && node --test test/*.test.mjs",
+    "test:types": "tsc -p test/types/tsconfig.json --noEmit",
+    "test:namespace": "sh test/run-namespace.sh",
+    "test:phase23": "npm test"
+  },
+  "napi": {
+    "binaryName": "nodenetscanner",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu"
+    ]
   }
 }

@@ -6,8 +6,11 @@ The `nodenet` workspace develops independently scoped Linux-native Node.js
 networking packages. `nodenetraw` provides applications with a memory-safe,
 resource-safe bridge to raw packet networking. TypeScript defines its public
 API; Rust owns descriptors, buffers, asynchronous state, and the Linux syscall
-boundary through Node-API. `nodenetscanner` is reserved for a future
-scanner-specific control/results API and Rust data plane; it is not implemented.
+boundary through Node-API. `nodenetscanner` is reserved for the accepted future
+scanner-specific control/results API and Rust data plane. Its public API has not
+started, while the shared syscall-free `nodenet-protocols` codec/correlation
+foundation and the read-only `nodenet-linux-context` snapshot, resolution, and
+coherent-refresh crate are complete through Phase 20.
 
 The target is practical full capability, not a permanently narrow convenience
 wrapper. The library should eventually expose enough typed and bounded
@@ -48,8 +51,35 @@ The release-capable baseline must cover:
     router-discovery, Timestamp, and legacy Address Mask formats, plus bounded
     increasing-TTL Echo traceroute support composed over the raw-socket APIs.
 
+The separate scanner baseline must cover:
+
+1. bounded Rust codecs for Ethernet/VLAN, ARP, IPv4/IPv6, TCP, UDP,
+   ICMPv4/ICMPv6, and IPv6 Neighbor Discovery;
+2. immutable, generation-tagged Linux link/address/route/rule/neighbor context
+   obtained through read-only `NETLINK_ROUTE` operations;
+3. compact IPv4/IPv6 target ranges and exclusions, explicit probes and ports,
+   deterministic ordering, adaptive timing, fairness, retries, and strong
+   response correlation without materializing the full Cartesian product;
+4. a portable native scan engine for ARP/NDP link-neighbor, ICMP Echo, TCP SYN,
+   and UDP probes whose descriptors and packet hot loop stay in Rust;
+5. bounded lossless result batches and lifecycle/progress control across N-API;
+6. independent hardening and release gates for the scanner package;
+7. an optional higher-performance backend only after the portable package is
+   release-capable and measurements satisfy the accepted improvement threshold.
+
+The first portable scanner supports Ethernet II with up to two VLAN tags and
+local/loopback IP routes. Other hardware types, tunnels, point-to-point links,
+and kernel encapsulation routes fail explicitly until separately accepted. The
+scanner is bound to the network namespace in which its descriptors are created;
+changing namespaces with `setns()` is not an API. Scan observations are
+unauthenticated wire evidence, with protocol-specific correlation strength, not
+proof that an application connection can traverse local firewall or host-stack
+policy.
+
 The detailed capability matrix and sequencing live in
-[the full-capability plan](11-full-capability-plan.md).
+[the full-capability plan](11-full-capability-plan.md) for `nodenetraw` and the
+[network and scanner evolution plan](31-network-and-scanner-evolution-plan.md)
+for `nodenetscanner` and its internal Rust crates.
 
 ## Functional requirements
 
@@ -128,8 +158,10 @@ license-compatible, and locked exactly.
 - Parsing arbitrary upper-layer protocols in the core package beyond the bounded
   IPv4/ICMP quote metadata required by accepted ICMP and traceroute utilities.
 - Network configuration protocols such as rtnetlink, TUN/TAP management, or
-  loading eBPF programs. Attaching an already-created compatible filter may be
-  supported without becoming an eBPF loader.
+  loading eBPF programs in `nodenetraw`. The scanner may use bounded read-only
+  `NETLINK_ROUTE` queries and subscriptions internally, but route/link/address/
+  neighbor mutation remains out of scope. Loading XDP is considered only by the
+  conditional extreme-backend phase after a separate evidence decision.
 - Claiming that every kernel-version-, driver-, or hardware-dependent feature is
   available merely because its constant compiled.
 
@@ -145,10 +177,21 @@ foundation, Echo utilities, diagnostic errors, quoted-datagram correlation, RFC
 formats. Phase 15 implements conventional bounded ICMP Echo traceroute over the
 same socket and event-receive foundation.
 
+Phases 16 through 18 completed the foundation, link/internet, transport/control,
+and correlation portions of the internal protocol toolkit. Phases 19 and 20
+completed the bounded read-only Linux snapshot, kernel route resolution, and
+notification-coherent refresh. Phases 21 and 22 add the deterministic scheduler
+and portable live scanner. Phases 23 and 24 freeze scanner batching and make its
+first release candidate independently releasable. Phase 25 measures the portable
+data plane and selects `no-go` or one justified backend; Phase 26 is conditional
+on a positive decision. These phases do not expand `nodenetraw`'s public scope.
+
 ## Definition of project success
 
-The project is successful when the capability baseline above is implemented for
-the declared Linux matrix; unsupported combinations fail predictably; resource,
-memory, cancellation, and teardown invariants hold under stress; and published
-artifacts are reproducible and documented. Breadth without those properties is
-not completion.
+The raw package is successful when its capability baseline is implemented for
+the declared Linux matrix. The scanner package is independently successful when
+its portable baseline produces accurate, bounded results through a stable batch
+API; unsupported combinations fail predictably; resource, memory, cancellation,
+and teardown invariants hold under stress; and its artifacts are reproducible
+and documented. An extreme backend is an optimization, not a condition of
+scanner success. Breadth without those properties is not completion.

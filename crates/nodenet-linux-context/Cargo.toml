@@ -1,0 +1,21 @@
+[package]
+name = "nodenet-linux-context"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.97.0"
+license = "MIT"
+publish = false
+
+[dependencies]
+libc = { version = "=0.2.186", default-features = false }
+netlink-packet-core = { version = "=0.8.1", default-features = false }
+netlink-packet-route = { version = "=0.31.0", default-features = false }
+netlink-sys = { version = "=0.8.8", default-features = false }
+
+[lints.rust]
+unsafe_code = "warn"
+warnings = "deny"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"

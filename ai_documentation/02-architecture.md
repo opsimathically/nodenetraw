@@ -10,9 +10,12 @@ development; the Cargo workspace shares internal Rust crates at compile time.
   package-specific tests and release tooling.
 - `crates/nodenetraw-native` owns the current descriptor/reactor/syscall data
   plane and N-API binding.
-- `packages/nodenetscanner` is private and empty of implementation until its
-  separate public and native data-plane contracts are accepted.
-- Future shared Rust crates remain non-published and must expose designed,
+- `packages/nodenetscanner` is private and empty of public implementation. Its
+  public and native data-plane contracts are accepted in the Phase 16–26
+  evolution plan. The shared `crates/nodenet-protocols` codecs/correlation and
+  `crates/nodenet-linux-context` immutable snapshots are implemented without
+  N-API; only the context crate owns a read-only Linux descriptor/syscall edge.
+- Shared Rust crates remain non-published and must expose designed,
   benchmark-backed internal boundaries. A Node package boundary must not force
   packets through JavaScript between native hot loops.
 
@@ -27,7 +30,7 @@ Node application
       v
 TypeScript public API and declarations
       |
-      +--> Pure bounded protocol utilities (ICMPv4 Echo implemented; expansion planned)
+      +--> Pure bounded protocol utilities (ICMPv4 and traceroute implemented)
       |
       v
 N-API exports and value/error conversion
@@ -45,6 +48,74 @@ must not duplicate native ownership state.
 
 The Rust layer owns descriptors, buffers involved in syscalls, operation state,
 and translations between Linux results and stable N-API values.
+
+## Planned scanner architecture
+
+The scanner is a separate native composition, not a JavaScript wrapper around
+`nodenetraw`:
+
+```text
+Node application
+      |
+      v
+nodenetscanner TypeScript control and bounded result-batch API
+      |
+      v
+nodenetscanner-native (N-API, session lifecycle, descriptors, I/O)
+      |
+      +--> nodenetscanner-engine (targets, timing, retries, classification)
+      |          |
+      |          +--> nodenet-protocols (bounded wire codecs/templates)
+      |
+      +--> nodenet-linux-context (read-only NETLINK_ROUTE generations)
+      |
+      v
+portable Linux raw/packet sockets
+      |
+      +--> optional selected backend only after the Phase 25 evidence gate
+```
+
+`nodenet-protocols`, `nodenet-linux-context`, and `nodenetscanner-engine` are
+non-published Rust crates without N-API dependencies. The scanner addon links
+them at compile time and owns all session descriptors, packet buffers, timers,
+secrets, and native workers. It neither calls `nodenetraw` through JavaScript
+nor borrows a `RawSocket` descriptor. This preserves independent public package
+scope without a packet-by-packet package-boundary cost.
+
+The initial scanner addon has one bounded runtime per Node environment rather
+than process-global state or one native thread per probe/session. It multiplexes
+up to four scanner objects and four concurrent sessions over an environment
+control wakeup, scheduler/I/O worker, read-only context driver, and bounded
+completion bridge. The bridge isolates Node callback backpressure from packet
+receive, timers, cancellation, and teardown; completion capacity is reserved at
+operation admission. Each session still owns its scan descriptors and memory
+reservations unambiguously.
+
+Network context is immutable and generation-tagged. Targeted kernel route
+queries select source/interface/gateway using Linux policy; the scanner does not
+reimplement the forwarding information base or mutate links, addresses, routes,
+rules, or neighbors. A context overrun or incomplete dump invalidates the
+generation and triggers bounded resynchronization.
+
+The implemented context subscribes before its initial dumps, applies bounded
+kernel multicast changes atomically, and retries a targeted lookup if changes
+advance the captured generation. `RouteContextDriver` transfers one context to
+one serialized worker with a 1,024-operation admission ceiling; enqueue-time
+deadlines, cooperative cancellation, polling, and bounded waiting keep future
+scanner integration independent of a particular async runtime.
+
+The context and scan descriptors remain in the network namespace where they are
+created; the addon never calls `setns()`. Ethernet/VLAN plans use `AF_PACKET`,
+while local/loopback plans use raw IP sockets without fabricating a link header.
+Other link/encapsulation types are explicit unsupported results in the first
+portable release.
+
+JavaScript supplies compact targets and explicit probe policy, controls session
+lifecycle, and consumes bounded batches. Rust expands targets lazily,
+constructs/correlates packets, enforces timing and memory budgets, and seals
+result batches. Raw packets, packet-ring mappings, and any future UMEM storage
+never cross N-API. The portable backend is complete and independently releasable
+before any optional extreme backend is selected.
 
 ## Module layers
 

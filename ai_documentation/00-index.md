@@ -1,6 +1,6 @@
 # Planning index
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 ## Current state
 
@@ -56,14 +56,55 @@ distinct ICMPv6 protocol. See the capability plan, review, and Phase 12–15
 reports for the frozen scope, wire-validation rules, safety bounds, and
 implementation evidence. The post-implementation audit corrected four hostile
 JavaScript boundary and callback-quiescence gaps and repeated all release gates.
-No subsequent implementation phase is currently accepted.
 
 The repository has been migrated without a public API change into the `nodenet`
 monorepo. The root is a private npm workspace and virtual Cargo workspace;
 `packages/nodenetraw` owns the existing Node package, `crates/nodenetraw-native`
-owns its Rust addon, and `packages/nodenetscanner` is a private placeholder with
-no implementation. Root commands continue to provide the canonical build, test,
-hardening, and release interface. See D-030 and the monorepo migration report.
+owns its Rust addon, and `packages/nodenetscanner` is a private Phase 23 preview
+with an initial Node API. The shared scanner foundations are internal Rust
+crates. Root commands continue to provide the canonical build, test, hardening,
+and release interface. See D-030 and the monorepo migration report.
+
+Phases 16 through 24 are the accepted portable scanner evolution roadmap. Phases
+16 through 22 are complete: the internal `nodenet-protocols` crate provides
+project-owned checked types/errors, bounded strict and explicit ICMP-quote
+inspection, transactional output, Ethernet/VLAN, ARP, IPv4, bounded IPv6
+extension traversal and fragments, explicit upper-layer disposition, checked
+frame templates, independent fixtures, fuzz targets, allocation baselines,
+scanner-relevant TCP/UDP/ICMPv4/ICMPv6/NDP codecs, bounded quote decoding, and
+session-keyed correlation with explicit protocol-specific evidence strength. The
+internal `nodenet-linux-context` crate now supplies bounded, immutable,
+generation-tagged link/address/route/rule/neighbor snapshots, policy-aware
+kernel route resolution, notification-coherent refresh, and a bounded
+asynchronous owner through read-only route netlink. The internal
+`nodenetscanner-engine` adds compact checked target products, deterministic
+seeded scheduling, exact virtual timing, fairness, evidence classification, late
+grace, bounded lifecycle draining, and lossless result reservations.
+`crates/nodenetscanner-native` and the private scanner package connect those
+foundations to one bounded runtime per Node environment, ordinary Linux
+packet/raw sockets, live ARP/NDP, ICMPv4/v6 Echo, TCP SYN and UDP probes, and a
+pull-based TypeScript session API. Phase 23 freezes versioned compact result
+batches, abortable waits, coalesced progress, and high/low-water backpressure;
+the remaining portable roadmap completes release hardening. Phase 25 is an
+evidence gate; conditional Phase 26 may add exactly one extreme backend only
+when measurements justify it. `nodenetraw` remains policy-free, while
+`nodenetscanner` owns its descriptors and native packet hot path without calling
+the raw package through JavaScript. See D-031, D-032, the
+[Phase 16 report](33-phase-16-report.md),
+[Phase 18 report](35-phase-18-report.md), the
+[Phase 19 report](36-phase-19-report.md), the
+[Phase 20 report](37-phase-20-report.md), the
+[Phase 21 report](38-phase-21-report.md), and the
+[Phase 22 report](39-phase-22-report.md), the
+[Phase 23 report](40-phase-23-report.md), plus the
+[network and scanner evolution plan](31-network-and-scanner-evolution-plan.md).
+
+The preimplementation review is closed. It corrected protocol-specific evidence
+strength, IPv6/NDP validation, netlink generation races, namespace and
+supported- link scope, native runtime/completion isolation, complete rate/result
+reservation, packet-socket outgoing/VLAN behavior, pull/cancel/close semantics,
+and the statistical/XDP ownership conditions for an extreme backend. See the
+[network evolution plan review](32-network-evolution-plan-review.md).
 
 ## Documents
 
@@ -97,6 +138,15 @@ hardening, and release interface. See D-030 and the monorepo migration report.
 28. [Phase 15 completion report](28-phase-15-report.md)
 29. [Phase 12–15 implementation audit](29-phase-12-15-implementation-audit.md)
 30. [Monorepo migration report](30-monorepo-migration-report.md)
+31. [Network and scanner evolution plan](31-network-and-scanner-evolution-plan.md)
+32. [Network and scanner evolution plan review](32-network-evolution-plan-review.md)
+33. [Phase 16 completion report](33-phase-16-report.md)
+34. [Phase 17 completion report](34-phase-17-report.md)
+35. [Phase 18 completion report](35-phase-18-report.md)
+36. [Phase 19 completion report](36-phase-19-report.md)
+37. [Phase 20 completion report](37-phase-20-report.md)
+38. [Phase 21 completion report](38-phase-21-report.md)
+39. [Phase 22 completion report](39-phase-22-report.md)
 
 `AGENTS.md` is the compact operational context. These documents contain the
 rationale and phase details. If they disagree, resolve the discrepancy and
@@ -118,6 +168,10 @@ update both rather than choosing silently.
 - The accepted post-baseline protocol layer covers the enumerated ICMPv4 message
   families and bounded ICMP Echo traceroute while retaining the raw socket APIs
   as the I/O and ownership foundation.
+- The accepted scanner roadmap keeps protocol codecs, read-only network context,
+  scheduling, correlation, and packet I/O in non-published Rust crates linked
+  into a separate scanner addon; JavaScript receives only control, progress,
+  summaries, and bounded result batches.
 
 ## Accepted Phase 1 choices
 
@@ -147,8 +201,7 @@ When work starts:
 4. Record the verification commands and results.
 5. Update this page's current state and next action.
 
-Phase 15 prepared the unpublished `0.1.0-rc.6` release candidate with bounded
-conventional ICMP Echo traceroute over the Phase 12–14 protocol foundation.
-Streams, async iteration, batch events, packet-ring events, `ref()`/`unref()`,
-and ICMPv6 protocol codecs remain separate design decisions. Native AArch64
-execution remains a publication gate.
+Phase 23 is complete. Phase 24 portable scanner release hardening is next.
+Extreme backends remain in their owning later phases, and native AArch64
+execution remains a publication gate for each architecture-specific public
+artifact.
