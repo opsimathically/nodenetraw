@@ -6,10 +6,12 @@ decision changes the commands, architecture, safety rules, or repository layout.
 
 ## Project purpose
 
-`@opsimathically/nodenetraw` is a Linux-only Node.js native module intended to
-expose low-level raw socket capabilities. TypeScript is the public Node-facing
-environment. Rust implements the native operations and crosses into Node through
-N-API.
+`nodenet` is a monorepo for Linux-native Node.js networking packages.
+`@opsimathically/nodenetraw` is the implemented, Linux-only native module for
+low-level raw socket capabilities. TypeScript is its public Node-facing
+environment. Rust implements native operations and crosses into Node through
+N-API. `@opsimathically/nodenetscanner` is currently a private planning
+placeholder with no API or implementation.
 
 The project prioritizes:
 
@@ -71,6 +73,12 @@ audit is `ai_documentation/24-icmp-plan-review.md`. Completion evidence is in
 `ai_documentation/28-phase-15-report.md`. The post-implementation hostile-input,
 policy-snapshot, callback-quiescence, and release-health review is
 `ai_documentation/29-phase-12-15-implementation-audit.md`.
+
+The repository is now the private `nodenet` npm/Cargo workspace governed by
+D-030. Existing raw-package source and release tooling live under
+`packages/nodenetraw`, its native crate lives under `crates/nodenetraw-native`,
+and the scanner package remains an intentionally empty private placeholder. The
+structural migration did not change the public API or release version.
 
 The current source of planning truth is
 [`ai_documentation/00-index.md`](ai_documentation/00-index.md).
@@ -158,15 +166,27 @@ The current source of planning truth is
 
 ## Expected repository shape
 
-The scaffold uses this separation:
+The workspace uses this separation:
 
-- root npm, TypeScript, ESLint, and Prettier configuration;
-- `native/` for the Rust N-API crate;
-- `src/` for TypeScript entry points, types, and any thin validation layer;
-- `test/` for Node-facing behavior and integration tests;
+- root private npm workspace orchestration, Cargo workspace/lock, toolchain,
+  ESLint, and Prettier configuration;
+- `packages/nodenetraw/` for the published package's TypeScript, tests,
+  package-specific release tooling, README, and changelog;
+- `crates/nodenetraw-native/` for the Rust N-API crate and its independently
+  locked fuzz project;
+- `packages/nodenetscanner/` for a private, non-publishable future-package
+  placeholder only;
 - `.github/workflows/ci.yml` for the unprivileged x86-64 quality gate;
 - Rust-local unit tests for native invariants;
 - `ai_documentation/` for plans, decisions, risks, and progress context.
+
+Use npm workspaces rather than `npm link`. Keep one root `package-lock.json` and
+one root Cargo workspace lock. Public packages version independently; internal
+shared Rust crates must be `publish = false` and cross package boundaries only
+at compile time. Do not make `nodenetraw` depend on scanner policy. Do not add
+scanner code during raw-package maintenance without an accepted scanner plan.
+The private root and package source trees both refuse direct publication;
+publish only inspected output under a package's `release/stage` directory.
 
 Do not commit generated package output, native build artifacts, coverage data,
 or dependency directories.
@@ -253,14 +273,15 @@ isolated without host-level privilege:
 
 ```sh
 unshare --user --map-root-user --net sh -c \
-  'ip link set lo up && NODENETRAW_PRIVILEGED_TESTS=1 node --test test/privileged.test.mjs'
+  'ip link set lo up && NODENETRAW_PRIVILEGED_TESTS=1 node --test packages/nodenetraw/test/privileged.test.mjs'
 ```
 
 Do not report a change as verified without naming which gates actually ran.
 
 ## Documentation map
 
-- `README.md`: concise human-facing project status and direction.
+- `README.md`: concise workspace overview and package map.
+- `packages/nodenetraw/README.md`: complete human-facing raw-package guide.
 - `ai_documentation/00-index.md`: planning index and current status.
 - `ai_documentation/01-scope-and-requirements.md`: goals, boundaries, and
   success criteria.
@@ -316,3 +337,5 @@ Do not report a change as verified without naming which gates actually ran.
 - `ai_documentation/29-phase-12-15-implementation-audit.md`: post-implementation
   protocol, hostile-input, lifecycle, privileged, stress, packaging, and
   release-health audit.
+- `ai_documentation/30-monorepo-migration-report.md`: workspace boundaries,
+  migration changes, and verification evidence.

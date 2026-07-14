@@ -1,9 +1,8 @@
-build/
-dist/
-native/target/
-native/fuzz/target/
+**/build/
+**/dist/
+**/target/
 node_modules/
-release/
+**/release/
 package-lock.json
 Cargo.lock
 *.node

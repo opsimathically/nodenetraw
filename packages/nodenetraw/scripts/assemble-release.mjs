@@ -12,11 +12,12 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const release = join(root, "release");
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repositoryRoot = resolve(packageRoot, "../..");
+const release = join(packageRoot, "release");
 const stage = join(release, "stage");
 const packageJson = JSON.parse(
-  readFileSync(join(root, "package.json"), "utf8"),
+  readFileSync(join(packageRoot, "package.json"), "utf8"),
 );
 const targets = {
   "linux-x64-gnu": "nodenetraw.linux-x64-gnu.node",
@@ -32,16 +33,11 @@ if (!(target in targets))
 rmSync(stage, { force: true, recursive: true });
 const rootStage = join(stage, "nodenetraw");
 mkdirSync(join(rootStage, "build", "native"), { recursive: true });
-for (const item of [
-  "dist",
-  "LICENSE",
-  "README.md",
-  "CHANGELOG.md",
-  "release-policy.json",
-])
-  cpSync(join(root, item), join(rootStage, item), { recursive: true });
+for (const item of ["dist", "README.md", "CHANGELOG.md", "release-policy.json"])
+  cpSync(join(packageRoot, item), join(rootStage, item), { recursive: true });
+cpSync(join(repositoryRoot, "LICENSE"), join(rootStage, "LICENSE"));
 cpSync(
-  join(root, "build", "native", "binding.cjs"),
+  join(packageRoot, "build", "native", "binding.cjs"),
   join(rootStage, "build", "native", "binding.cjs"),
 );
 
@@ -72,15 +68,19 @@ writeFileSync(
 
 const targetStage = join(stage, `nodenetraw-${target}`);
 mkdirSync(targetStage, { recursive: true });
-for (const item of ["LICENSE", "README.md"])
-  cpSync(join(root, item), join(targetStage, item));
-const targetManifest = join(root, "npm", target, "package.json");
+cpSync(join(repositoryRoot, "LICENSE"), join(targetStage, "LICENSE"));
+cpSync(join(packageRoot, "README.md"), join(targetStage, "README.md"));
+const targetManifest = join(packageRoot, "npm", target, "package.json");
 cpSync(targetManifest, join(targetStage, "package.json"));
 const binary = targets[target];
-const binaryPath = join(root, "build", "native", binary);
+const binaryPath = join(packageRoot, "build", "native", binary);
 const artifactVerification = spawnSync(
   process.execPath,
-  [join(root, "scripts", "verify-native-artifact.mjs"), binaryPath, target],
+  [
+    join(packageRoot, "scripts", "verify-native-artifact.mjs"),
+    binaryPath,
+    target,
+  ],
   { encoding: "utf8" },
 );
 if (artifactVerification.status !== 0)
@@ -121,7 +121,7 @@ const provenance = {
   }).stdout.trim(),
   sourceDateEpoch: process.env.SOURCE_DATE_EPOCH ?? null,
   nativeCargoLockSha256: createHash("sha256")
-    .update(readFileSync(join(root, "native", "Cargo.lock")))
+    .update(readFileSync(join(repositoryRoot, "Cargo.lock")))
     .digest("hex"),
   files: [...files(rootStage), ...files(targetStage)].sort().map((path) => ({
     path: relative(stage, path),

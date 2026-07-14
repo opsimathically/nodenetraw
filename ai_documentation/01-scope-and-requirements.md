@@ -2,15 +2,22 @@
 
 ## Product statement
 
-Provide Linux Node.js applications with a memory-safe, resource-safe bridge to
-raw packet networking. TypeScript defines the public API; Rust owns descriptors,
-buffers, asynchronous state, and the Linux syscall boundary through Node-API.
+The `nodenet` workspace develops independently scoped Linux-native Node.js
+networking packages. `nodenetraw` provides applications with a memory-safe,
+resource-safe bridge to raw packet networking. TypeScript defines its public
+API; Rust owns descriptors, buffers, asynchronous state, and the Linux syscall
+boundary through Node-API. `nodenetscanner` is reserved for a future
+scanner-specific control/results API and Rust data plane; it is not implemented.
 
 The target is practical full capability, not a permanently narrow convenience
 wrapper. The library should eventually expose enough typed and bounded
 primitives to build protocol implementations, packet capture/injection tools,
-diagnostics, scanners, routers, and network test systems without adding another
-native addon. Completeness is measured against documented Linux socket
+diagnostics, routers, and network test systems. It can support ordinary scanner
+implementations directly, but scanner scheduling, policy, target generation, and
+a high-rate native data plane belong to the separate scanner package.
+Performance-sensitive code may be shared between native addons through internal
+compile-time Rust crates rather than sending packet hot paths through
+JavaScript. Completeness is measured against documented Linux socket
 capabilities, not by mirroring every numeric constant into JavaScript.
 
 ## Capability baseline
@@ -114,8 +121,10 @@ license-compatible, and locked exactly.
 - Automatic privilege elevation or capability management.
 - Authentication, authorization policy, firewall policy, or deciding which
   packets an application is allowed to create.
-- High-level TCP, UDP, HTTP, DNS, routing-protocol, or general packet-decoding
-  APIs. The explicitly planned ICMPv4 diagnostics layer is the narrow exception.
+- High-level TCP, UDP, HTTP, DNS, routing-protocol, scanner-policy, or general
+  packet-decoding APIs in `nodenetraw`. The implemented ICMPv4 diagnostics layer
+  is the narrow raw-package exception; future scanner capabilities belong to
+  `nodenetscanner`.
 - Parsing arbitrary upper-layer protocols in the core package beyond the bounded
   IPv4/ICMP quote metadata required by accepted ICMP and traceroute utilities.
 - Network configuration protocols such as rtnetlink, TUN/TAP management, or

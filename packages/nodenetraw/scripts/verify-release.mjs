@@ -1,9 +1,30 @@
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
-const policy = JSON.parse(readFileSync("release-policy.json", "utf8"));
-const cargo = readFileSync("native/Cargo.toml", "utf8");
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repositoryRoot = resolve(packageRoot, "../..");
+const nativeManifest = join(
+  repositoryRoot,
+  "crates",
+  "nodenetraw-native",
+  "Cargo.toml",
+);
+const fuzzManifest = join(
+  repositoryRoot,
+  "crates",
+  "nodenetraw-native",
+  "fuzz",
+  "Cargo.toml",
+);
+const packageJson = JSON.parse(
+  readFileSync(join(packageRoot, "package.json"), "utf8"),
+);
+const policy = JSON.parse(
+  readFileSync(join(packageRoot, "release-policy.json"), "utf8"),
+);
+const cargo = readFileSync(nativeManifest, "utf8");
 
 function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
@@ -40,7 +61,7 @@ requireCondition(
 
 for (const target of ["linux-x64-gnu", "linux-arm64-gnu"]) {
   const manifest = JSON.parse(
-    readFileSync(`npm/${target}/package.json`, "utf8"),
+    readFileSync(join(packageRoot, "npm", target, "package.json"), "utf8"),
   );
   requireCondition(
     manifest.version === packageJson.version,
@@ -61,7 +82,7 @@ for (const target of ["linux-x64-gnu", "linux-arm64-gnu"]) {
 }
 
 const packages = new Map();
-for (const manifest of ["native/Cargo.toml", "native/fuzz/Cargo.toml"]) {
+for (const manifest of [nativeManifest, fuzzManifest]) {
   const metadata = spawnSync(
     "cargo",
     [
@@ -98,6 +119,7 @@ for (const dependency of packages.values()) {
 }
 
 const audit = spawnSync("npm", ["audit", "--omit=dev", "--audit-level=high"], {
+  cwd: repositoryRoot,
   encoding: "utf8",
   stdio: "inherit",
 });

@@ -79,7 +79,7 @@ namespace without host-level privilege:
 
 ```sh
 unshare --user --map-root-user --net sh -c \
-  'ip link set lo up && NODENETRAW_PRIVILEGED_TESTS=1 node --test test/privileged.test.mjs'
+  'ip link set lo up && NODENETRAW_PRIVILEGED_TESTS=1 node --test packages/nodenetraw/test/privileged.test.mjs'
 ```
 
 Phase 5 adds the repository-owned `npm run test:namespace` harness so capability
@@ -260,7 +260,7 @@ stable Node-API 10; napi-derive enables strict macro checks and type definition
 generation. rustix disables defaults and enables only `std`, `event`, `fs`, and
 `net` so the Linux socket, epoll, and eventfd boundary remains safe without
 pulling in a general async runtime. All transitive Rust versions are committed
-in `native/Cargo.lock`.
+in the root `Cargo.lock`.
 
 Phase 5 adds nix 0.31.3 as a direct native dependency with default features
 disabled and only `socket`, `uio`, and `net`. The implementation change records

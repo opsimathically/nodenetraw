@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+package_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+repository_root=$(CDPATH= cd -- "$package_root/../.." && pwd)
+cd "$package_root"
+
 mode=${1:-}
 suite=${2:-privileged}
 case "$mode" in
@@ -31,7 +35,7 @@ find_node() {
     return
   fi
 
-  requested=$(sed -n '1p' .nvmrc 2>/dev/null || true)
+  requested=$(sed -n '1p' "$repository_root/.nvmrc" 2>/dev/null || true)
   if [ -n "$requested" ] && [ -d "$home/.nvm/versions/node" ]; then
     candidate=$(find "$home/.nvm/versions/node" -path "*/v${requested}*/bin/node" -type f 2>/dev/null | sort -V | tail -n 1)
     if [ -n "$candidate" ] && is_supported_node "$candidate"; then
@@ -82,7 +86,7 @@ run_build_as_owner() {
 }
 
 if [ "$(id -u)" -eq 0 ]; then
-  owner=${SUDO_USER:-$(stat -c %U .)}
+  owner=${SUDO_USER:-$(stat -c %U "$repository_root")}
   if [ "$owner" != root ]; then
     owner_entry=$(getent passwd "$owner" || true)
     if [ -z "$owner_entry" ]; then

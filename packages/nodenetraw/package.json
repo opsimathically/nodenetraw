@@ -10,11 +10,12 @@
     "napi",
     "rust"
   ],
-  "homepage": "https://github.com/opsimathically/nodenetraw#readme",
-  "bugs": "https://github.com/opsimathically/nodenetraw/issues",
+  "homepage": "https://github.com/opsimathically/nodenet/tree/main/packages/nodenetraw#readme",
+  "bugs": "https://github.com/opsimathically/nodenet/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/opsimathically/nodenetraw.git"
+    "url": "git+https://github.com/opsimathically/nodenet.git",
+    "directory": "packages/nodenetraw"
   },
   "os": [
     "linux"
@@ -49,17 +50,17 @@
   "scripts": {
     "prepublishOnly": "node scripts/refuse-direct-publish.mjs",
     "build": "npm run build:native && npm run build:typescript",
-    "build:native": "napi build --manifest-path native/Cargo.toml --platform --output-dir build/native --js binding.cjs --dts binding.d.ts -- --locked",
-    "build:native:release": "napi build --manifest-path native/Cargo.toml --platform --release --strip --use-napi-cross --output-dir build/native --js binding.cjs --dts binding.d.ts -- --locked",
+    "build:native": "napi build --manifest-path ../../crates/nodenetraw-native/Cargo.toml --platform --output-dir build/native --js binding.cjs --dts binding.d.ts -- --locked",
+    "build:native:release": "napi build --manifest-path ../../crates/nodenetraw-native/Cargo.toml --platform --release --strip --use-napi-cross --output-dir build/native --js binding.cjs --dts binding.d.ts -- --locked",
     "build:typescript": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint . --fix --max-warnings 0",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "rust:fmt": "cargo fmt --manifest-path native/Cargo.toml --check",
-    "rust:clippy": "cargo clippy --manifest-path native/Cargo.toml --all-targets --locked -- -D warnings",
-    "rust:test": "cargo test --manifest-path native/Cargo.toml --locked",
+    "lint": "eslint . --config ../../eslint.config.mjs --max-warnings 0",
+    "lint:fix": "eslint . --config ../../eslint.config.mjs --fix --max-warnings 0",
+    "format": "prettier --config ../../.prettierrc.json --ignore-path ../../.prettierignore --write .",
+    "format:check": "prettier --config ../../.prettierrc.json --ignore-path ../../.prettierignore --check .",
+    "rust:fmt": "cargo fmt --manifest-path ../../crates/nodenetraw-native/Cargo.toml --check",
+    "rust:clippy": "cargo clippy --manifest-path ../../crates/nodenetraw-native/Cargo.toml --all-targets --locked -- -D warnings",
+    "rust:test": "cargo test --manifest-path ../../crates/nodenetraw-native/Cargo.toml --locked",
     "test": "npm run build && npm run test:types && node --test test/*.test.mjs",
     "test:types": "tsc -p test/types/tsconfig.json --noEmit",
     "test:privileged": "sh test/run-privileged.sh root",
@@ -70,7 +71,7 @@
     "test:phase15:stress": "sh test/run-privileged.sh root traceroute-stress",
     "hardening:verify": "node scripts/verify-release.mjs",
     "hardening:stress": "npm run test:phase9:stress",
-    "fuzz": "cargo +nightly fuzz run surface --fuzz-dir native/fuzz -- -max_total_time=60",
+    "fuzz": "cargo +nightly fuzz run surface --fuzz-dir ../../crates/nodenetraw-native/fuzz -- -max_total_time=60",
     "release:assemble": "node scripts/assemble-release.mjs",
     "release:verify-artifact": "node scripts/verify-native-artifact.mjs",
     "release:consumer-test": "node scripts/test-release-consumer.mjs",
@@ -83,14 +84,5 @@
       "x86_64-unknown-linux-gnu",
       "aarch64-unknown-linux-gnu"
     ]
-  },
-  "devDependencies": {
-    "@eslint/js": "10.0.1",
-    "@napi-rs/cli": "3.7.3",
-    "@types/node": "26.1.1",
-    "eslint": "10.7.0",
-    "prettier": "3.9.5",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.63.0"
   }
 }

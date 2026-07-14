@@ -38,7 +38,7 @@ jobs:
         with:
           name: nodenetraw-${{ matrix.target }}
           path: |
-            release/tarballs/*.tgz
-            release/provenance-*.json
+            packages/nodenetraw/release/tarballs/*.tgz
+            packages/nodenetraw/release/provenance-*.json
           if-no-files-found: error
           retention-days: 14

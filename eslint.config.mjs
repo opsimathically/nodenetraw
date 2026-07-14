@@ -4,21 +4,20 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   {
     ignores: [
-      "build/",
-      "dist/",
-      "native/target/",
-      "native/fuzz/target/",
+      "**/build/",
+      "**/dist/",
+      "**/target/",
       "node_modules/",
       "package-lock.json",
-      "release/",
-      "test/types/",
+      "**/release/",
+      "packages/nodenetraw/test/types/",
     ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   {
-    files: ["src/**/*.ts"],
+    files: ["packages/nodenetraw/src/**/*.ts"],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -27,13 +26,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/internal/event-controller.ts"],
+    files: ["packages/nodenetraw/src/internal/event-controller.ts"],
     rules: {
       "@typescript-eslint/prefer-promise-reject-errors": "off",
     },
   },
   {
-    files: ["src/internal/traceroute.ts"],
+    files: ["packages/nodenetraw/src/internal/traceroute.ts"],
     rules: {
       "@typescript-eslint/only-throw-error": "off",
       "@typescript-eslint/prefer-promise-reject-errors": "off",

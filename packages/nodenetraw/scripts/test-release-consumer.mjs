@@ -1,7 +1,10 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function run(command, arguments_, options = {}) {
   const result = spawnSync(command, arguments_, {
@@ -13,29 +16,29 @@ function run(command, arguments_, options = {}) {
     throw new Error(`${command} ${arguments_.join(" ")} failed`);
 }
 
-run("npm", ["run", "build:native:release"]);
-run(process.execPath, ["scripts/assemble-release.mjs"]);
+run("npm", ["run", "build:native:release"], { cwd: packageRoot });
+run(process.execPath, ["scripts/assemble-release.mjs"], { cwd: packageRoot });
 const target = `linux-${process.arch}-gnu`;
-const tarballs = join("release", "tarballs");
+const tarballs = join(packageRoot, "release", "tarballs");
 rmSync(tarballs, { force: true, recursive: true });
 mkdirSync(tarballs, { recursive: true });
 run("npm", ["pack", "--pack-destination", "../../tarballs"], {
-  cwd: `release/stage/nodenetraw-${target}`,
+  cwd: join(packageRoot, "release", "stage", `nodenetraw-${target}`),
 });
 run("npm", ["pack", "--pack-destination", "../../tarballs"], {
-  cwd: "release/stage/nodenetraw",
+  cwd: join(packageRoot, "release", "stage", "nodenetraw"),
 });
-const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+const version = JSON.parse(
+  readFileSync(join(packageRoot, "package.json"), "utf8"),
+).version;
 const consumer = mkdtempSync(join(tmpdir(), "nodenetraw-consumer-"));
 try {
   run("npm", ["init", "--yes"], { cwd: consumer });
   const platformTarball = join(
-    process.cwd(),
     tarballs,
     `opsimathically-nodenetraw-linux-${process.arch}-gnu-${version}.tgz`,
   );
   const rootTarball = join(
-    process.cwd(),
     tarballs,
     `opsimathically-nodenetraw-${version}.tgz`,
   );

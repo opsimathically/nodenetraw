@@ -1,0 +1,11 @@
+{
+  "name": "@opsimathically/nodenetscanner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reserved workspace for a future Linux-native Node.js network scanner",
+  "license": "MIT",
+  "engines": {
+    "node": ">=26.0.0",
+    "npm": ">=11.0.0"
+  }
+}

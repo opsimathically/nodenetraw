@@ -58,6 +58,13 @@ implementation evidence. The post-implementation audit corrected four hostile
 JavaScript boundary and callback-quiescence gaps and repeated all release gates.
 No subsequent implementation phase is currently accepted.
 
+The repository has been migrated without a public API change into the `nodenet`
+monorepo. The root is a private npm workspace and virtual Cargo workspace;
+`packages/nodenetraw` owns the existing Node package, `crates/nodenetraw-native`
+owns its Rust addon, and `packages/nodenetscanner` is a private placeholder with
+no implementation. Root commands continue to provide the canonical build, test,
+hardening, and release interface. See D-030 and the monorepo migration report.
+
 ## Documents
 
 1. [Scope and requirements](01-scope-and-requirements.md)
@@ -89,6 +96,7 @@ No subsequent implementation phase is currently accepted.
 27. [Phase 14 completion report](27-phase-14-report.md)
 28. [Phase 15 completion report](28-phase-15-report.md)
 29. [Phase 12–15 implementation audit](29-phase-12-15-implementation-audit.md)
+30. [Monorepo migration report](30-monorepo-migration-report.md)
 
 `AGENTS.md` is the compact operational context. These documents contain the
 rationale and phase details. If they disagree, resolve the discrepancy and

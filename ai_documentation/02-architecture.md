@@ -1,5 +1,24 @@
 # Architecture
 
+## Workspace boundaries
+
+The repository root is private orchestration, not a publishable aggregate
+package. npm workspaces link independently versioned Node packages during
+development; the Cargo workspace shares internal Rust crates at compile time.
+
+- `packages/nodenetraw` owns the policy-free raw-networking public API and its
+  package-specific tests and release tooling.
+- `crates/nodenetraw-native` owns the current descriptor/reactor/syscall data
+  plane and N-API binding.
+- `packages/nodenetscanner` is private and empty of implementation until its
+  separate public and native data-plane contracts are accepted.
+- Future shared Rust crates remain non-published and must expose designed,
+  benchmark-backed internal boundaries. A Node package boundary must not force
+  packets through JavaScript between native hot loops.
+
+The workspace uses one root npm lock and one root Cargo lock. The fuzz crate is
+independently locked because `cargo-fuzz` requires its own workspace.
+
 ## Component boundaries
 
 ```text

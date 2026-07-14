@@ -5,8 +5,6 @@ raw socket access. It exposes a TypeScript API backed by Rust through N-API,
 with an emphasis on memory safety, correct file-descriptor ownership, stable
 Linux error reporting, and a small dependency footprint.
 
-pre-monorepo
-
 > **Status:** IPv4, IPv6, and raw/cooked Linux packet sockets support typed
 > message I/O, metadata, advanced options, packet controls, filter attachment,
 > AbortSignal cancellation, stable errors, explicit close, and an optional typed
@@ -27,6 +25,12 @@ stable Rust release), and 64-bit glibc Linux on x86-64 or AArch64 with kernel
 > native AArch64 hardware or a native AArch64 CI runner.
 
 ## Direction
+
+The package is developed in the `nodenet` monorepo and is intended to remain
+Node's policy-free, memory-safe bridge to Linux raw packet networking. Scanner
+policy and orchestration belong to the separate planned `nodenetscanner`
+package; reusable performance-sensitive Rust code may be shared at compile time
+without expanding this package's public scope.
 
 The project is intended to become Node's memory-safe bridge to Linux raw packet
 networking: IPv4 and IPv6 raw IP, `AF_PACKET`, message flags and ancillary data,
@@ -69,15 +73,16 @@ Phases 5 through 11 are complete: bounded message I/O, cancellation, IPv4/IPv6,
 Linux `AF_PACKET`, advanced configuration, filtering, batching, and measured
 receive-ring work are in place, together with the event receive adapter,
 fuzz/sanitizer gates, and target-specific release rehearsal. See the
-[full capability plan](ai_documentation/11-full-capability-plan.md).
+[full capability plan](../../ai_documentation/11-full-capability-plan.md).
 
 Phases 12 through 15 are implemented with zero-dependency ICMPv4 checksum, Echo,
 diagnostic-error, Router Discovery, Timestamp, and deprecated Address Mask
 construction; standalone and Linux raw-receive parsing; quoted-packet
 correlation; RFC 4884 extensions; validation; socket helpers; and bounded
 increasing-TTL ICMP Echo traceroute. See the
-[ICMP and traceroute plan](ai_documentation/23-icmp-and-traceroute-plan.md) and
-its [preimplementation review](ai_documentation/24-icmp-plan-review.md).
+[ICMP and traceroute plan](../../ai_documentation/23-icmp-and-traceroute-plan.md)
+and its
+[preimplementation review](../../ai_documentation/24-icmp-plan-review.md).
 
 ## Supported feature matrix
 
@@ -1025,15 +1030,17 @@ adapter lifecycle.
 
 ## Documentation
 
-The project plan begins at
-[`ai_documentation/00-index.md`](ai_documentation/00-index.md). Contributors and
-coding agents should also read [`AGENTS.md`](AGENTS.md) before making changes.
+The workspace plan begins at
+[`ai_documentation/00-index.md`](../../ai_documentation/00-index.md).
+Contributors and coding agents should also read [`AGENTS.md`](../../AGENTS.md)
+before making changes.
 
 ## Development
 
-Prerequisites are Node.js 26+, npm 11+, Rust 1.97.0 through `rustup`, and a
-working Linux linker. The pinned Rust toolchain is described by
-`rust-toolchain.toml`.
+Run development commands from the repository root. Prerequisites are Node.js
+26+, npm 11+, Rust 1.97.0 through `rustup`, and a working Linux linker. The
+pinned Rust toolchain is described by
+[`rust-toolchain.toml`](../../rust-toolchain.toml).
 
 ```sh
 npm ci
@@ -1058,16 +1065,21 @@ npm run build:typescript
 ```
 
 `npm run release:consumer-test` stages the root and current-architecture native
-packages, packs them, installs them into a temporary clean project with scripts
-disabled, and tests ESM plus `require()`. `npm run release:reproducibility`
-builds the optimized addon twice and compares SHA-256 hashes.
-`npm run release:verify-artifact` checks ELF architecture and the glibc symbol
-ceiling. Actual npm publication is intentionally not automated by these
-commands.
+packages under `packages/nodenetraw/release/stage`, packs them, installs them
+into a temporary clean project with scripts disabled, and tests ESM plus
+`require()`. `npm run release:reproducibility` builds the optimized addon twice
+and compares SHA-256 hashes. `npm run release:verify-artifact` checks ELF
+architecture and the glibc symbol ceiling. Actual npm publication is
+intentionally not automated by these commands.
+
+The private workspace root and the package source tree both refuse direct
+publication. Only inspect and publish the staged packages produced by
+`npm run release:assemble`.
 
 Additional focused commands include `npm run typecheck`, `npm run lint`,
 `npm run format:check`, `npm run rust:fmt`, `npm run rust:clippy`, and
-`npm run rust:test`. See [`AGENTS.md`](AGENTS.md) for the complete command map.
+`npm run rust:test`. See [`AGENTS.md`](../../AGENTS.md) for the complete command
+map.
 
 Successful raw-socket integration tests can be launched with ordinary `sudo`:
 
@@ -1093,21 +1105,21 @@ Do not use `sudo npm run build`; use the privileged test command above so the
 build step can deliberately drop back to the repository owner.
 
 Implementation and verification details are in the
-[Phase 10 report](ai_documentation/17-phase-10-report.md) and the
-[release-readiness audit](ai_documentation/18-release-readiness-audit.md). The
-event adapter is recorded in the
-[Phase 11 report](ai_documentation/21-phase-11-report.md); its adversarial
+[Phase 10 report](../../ai_documentation/17-phase-10-report.md) and the
+[release-readiness audit](../../ai_documentation/18-release-readiness-audit.md).
+The event adapter is recorded in the
+[Phase 11 report](../../ai_documentation/21-phase-11-report.md); its adversarial
 post-implementation review is the
-[Phase 11 implementation audit](ai_documentation/22-phase-11-implementation-audit.md).
+[Phase 11 implementation audit](../../ai_documentation/22-phase-11-implementation-audit.md).
 The Phase 12 foundation is recorded in the
-[Phase 12 report](ai_documentation/25-phase-12-report.md). The completed ICMPv4
-and traceroute sequence is defined by the
-[ICMPv4 and traceroute capability plan](ai_documentation/23-icmp-and-traceroute-plan.md),
+[Phase 12 report](../../ai_documentation/25-phase-12-report.md). The completed
+ICMPv4 and traceroute sequence is defined by the
+[ICMPv4 and traceroute capability plan](../../ai_documentation/23-icmp-and-traceroute-plan.md),
 whose readiness findings are closed in the
-[preimplementation review](ai_documentation/24-icmp-plan-review.md). Its final
-implementation evidence is in the
-[Phase 15 report](ai_documentation/28-phase-15-report.md), followed by the
-[Phase 12–15 implementation audit](ai_documentation/29-phase-12-15-implementation-audit.md).
+[preimplementation review](../../ai_documentation/24-icmp-plan-review.md). Its
+final implementation evidence is in the
+[Phase 15 report](../../ai_documentation/28-phase-15-report.md), followed by the
+[Phase 12–15 implementation audit](../../ai_documentation/29-phase-12-15-implementation-audit.md).
 
 ## License
 

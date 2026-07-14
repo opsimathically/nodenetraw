@@ -1,0 +1,54 @@
+{
+  "name": "@opsimathically/nodenet-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Workspace for Linux-native Node.js networking libraries",
+  "license": "MIT",
+  "engines": {
+    "node": ">=26.0.0",
+    "npm": ">=11.0.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "prepublishOnly": "node scripts/refuse-workspace-publish.mjs",
+    "build": "npm run build --workspace=@opsimathically/nodenetraw",
+    "build:native": "npm run build:native --workspace=@opsimathically/nodenetraw",
+    "build:native:release": "npm run build:native:release --workspace=@opsimathically/nodenetraw",
+    "build:typescript": "npm run build:typescript --workspace=@opsimathically/nodenetraw",
+    "typecheck": "npm run typecheck --workspace=@opsimathically/nodenetraw",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "rust:fmt": "cargo fmt --all --check",
+    "rust:clippy": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "rust:test": "cargo test --workspace --locked",
+    "test": "npm test --workspace=@opsimathically/nodenetraw",
+    "test:types": "npm run test:types --workspace=@opsimathically/nodenetraw",
+    "test:privileged": "npm run test:privileged --workspace=@opsimathically/nodenetraw",
+    "test:namespace": "npm run test:namespace --workspace=@opsimathically/nodenetraw",
+    "benchmark:namespace": "npm run benchmark:namespace --workspace=@opsimathically/nodenetraw",
+    "test:phase9:stress": "npm run test:phase9:stress --workspace=@opsimathically/nodenetraw",
+    "test:phase11:stress": "npm run test:phase11:stress --workspace=@opsimathically/nodenetraw",
+    "test:phase15:stress": "npm run test:phase15:stress --workspace=@opsimathically/nodenetraw",
+    "hardening:verify": "npm run hardening:verify --workspace=@opsimathically/nodenetraw",
+    "hardening:stress": "npm run hardening:stress --workspace=@opsimathically/nodenetraw",
+    "fuzz": "cargo +nightly fuzz run surface --fuzz-dir crates/nodenetraw-native/fuzz -- -max_total_time=60",
+    "release:assemble": "npm run release:assemble --workspace=@opsimathically/nodenetraw",
+    "release:verify-artifact": "npm run release:verify-artifact --workspace=@opsimathically/nodenetraw",
+    "release:consumer-test": "npm run release:consumer-test --workspace=@opsimathically/nodenetraw",
+    "release:reproducibility": "npm run release:reproducibility --workspace=@opsimathically/nodenetraw",
+    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run rust:fmt && npm run rust:clippy && npm run rust:test && npm test && npm run hardening:verify"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@napi-rs/cli": "3.7.3",
+    "@types/node": "26.1.1",
+    "eslint": "10.7.0",
+    "prettier": "3.9.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.63.0"
+  }
+}

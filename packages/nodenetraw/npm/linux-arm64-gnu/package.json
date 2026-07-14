@@ -5,7 +5,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/opsimathically/nodenetraw.git"
+    "url": "git+https://github.com/opsimathically/nodenet.git",
+    "directory": "packages/nodenetraw/npm/linux-arm64-gnu"
   },
   "main": "nodenetraw.linux-arm64-gnu.node",
   "files": [

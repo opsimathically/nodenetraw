@@ -18,8 +18,9 @@ jobs:
       - run: rustup toolchain install nightly --profile minimal
       - run: cargo +nightly install cargo-fuzz --version 0.13.2 --locked
       - run:
-          cargo +nightly fuzz run surface --fuzz-dir native/fuzz --
-          -max_total_time=300 -rss_limit_mb=2048
+          cargo +nightly fuzz run surface --fuzz-dir
+          crates/nodenetraw-native/fuzz -- -max_total_time=300
+          -rss_limit_mb=2048
 
   sanitizers:
     name: ${{ matrix.sanitizer }} sanitizer
@@ -39,8 +40,9 @@ jobs:
           RUSTFLAGS: -Zsanitizer=${{ matrix.sanitizer }}
           RUSTDOCFLAGS: -Zsanitizer=${{ matrix.sanitizer }}
         run: >-
-          cargo +nightly test --manifest-path native/Cargo.toml --target
-          x86_64-unknown-linux-gnu -Zbuild-std --locked --features fuzzing
+          cargo +nightly test --manifest-path
+          crates/nodenetraw-native/Cargo.toml --target x86_64-unknown-linux-gnu
+          -Zbuild-std --locked --features fuzzing
 
   advisory:
     name: Dependency advisories
@@ -55,8 +57,8 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: cargo install cargo-audit --version 0.22.2 --locked
-      - run: cargo audit --file native/Cargo.lock
-      - run: cargo audit --file native/fuzz/Cargo.lock
+      - run: cargo audit --file Cargo.lock
+      - run: cargo audit --file crates/nodenetraw-native/fuzz/Cargo.lock
       - run: npm run hardening:verify
 
   namespace-stress:

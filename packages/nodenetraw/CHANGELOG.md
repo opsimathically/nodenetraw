@@ -30,6 +30,9 @@ release-candidate APIs may change before `0.1.0`.
 - Keep conventional traceroute in strict TypeScript with zero runtime
   dependencies and no deprecated ICMP type-30, native I/O, hidden global state,
   DNS lookup, or retained raw-packet history.
+- Move development into the private `nodenet` npm/Cargo monorepo while
+  preserving the package API, version, zero-runtime-dependency contract,
+  architecture packages, and staged-publication safeguards.
 
 ## 0.1.0-rc.5 - 2026-07-13
 

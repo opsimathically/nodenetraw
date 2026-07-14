@@ -392,13 +392,11 @@ rationale to avoid repeating the investigation.
 
 ## Remaining design details
 
-Phase 10 has no remaining design question. Phase 11's event adapter and the
-Phase 12 ICMPv4 foundation/Echo slice are implemented. The remaining ICMPv4 and
-traceroute expansion is accepted in D-029; its preimplementation review has no
-open blocker, and Phase 13 errors/quotes/extensions are next. Publishing an
-artifact remains an explicit operator action outside implementation. A future
-ICMPv6 codec, TX mmap, stream, async-iterator, batch-event, or packet-ring-event
-slice requires its own decision and review.
+Phases 1 through 15 are implemented and the workspace migration is accepted in
+D-030. Publishing an artifact remains an explicit operator action outside
+implementation. A future scanner engine, shared native crate extraction, ICMPv6
+codec, TX mmap, stream, async-iterator, batch-event, or packet-ring-event slice
+requires its own decision and review.
 
 ### D-026 — Lossless bounded Node completion backpressure
 
@@ -515,6 +513,37 @@ slice requires its own decision and review.
   event consumers use public builders/classifiers instead. Every public-surface
   phase advances the release candidate and reruns declaration, privileged,
   stress, consumer, reproducibility, and artifact gates.
+
+### D-030 — Neutral monorepo with independent Node packages and shared Rust builds
+
+- Status: accepted and implemented
+- Date: 2026-07-13
+- Decision: develop `nodenetraw` and the future `nodenetscanner` in the renamed
+  `nodenet` repository. The repository root is a private npm workspace and a
+  virtual Cargo workspace. The existing public package lives at
+  `packages/nodenetraw`; its native addon lives at `crates/nodenetraw-native`.
+  `packages/nodenetscanner` is initially a private, non-publishable placeholder
+  with no API or implementation. Use npm's built-in workspaces, one root npm
+  lock, one root Cargo lock, and no manual `npm link`, Lerna, Nx, Turborepo, or
+  second package manager. Public Node packages version and publish
+  independently. Reusable performance-sensitive Rust code may later move into
+  `publish = false` workspace crates only after a focused contract, benchmark,
+  and safety review.
+- Rationale: public package separation preserves a clear, policy-free raw
+  networking API while allowing a scanner addon to keep scheduling, packet
+  construction, correlation, and result batching inside Rust. Package boundaries
+  do not create hot-path overhead when shared Rust code is linked at compile
+  time and N-API is crossed only for configuration, control, and bounded
+  results. A long-lived fork would duplicate fixes, native ownership logic,
+  release work, and security review.
+- Consequences: repository-root commands remain the canonical operator interface
+  and target `nodenetraw` explicitly until another implemented package has its
+  own gates. The root can never be published. Direct source-tree publication of
+  `nodenetraw` remains blocked; release assembly still produces independently
+  inspectable root and architecture packages. Structural migration must not
+  alter public API behavior, artifact contents, ABI policy, or privilege
+  handling. Scanner work cannot expand `nodenetraw`'s public scope implicitly,
+  and shared-crate extraction is a later change rather than part of this move.
 
 ## Research references
 
